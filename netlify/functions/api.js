@@ -31,9 +31,20 @@ try {
 app.use(cors());
 app.use(express.json());
 
-// Debug middleware to log all requests
+// Debug middleware to log all requests with detailed information
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path}`);
+  console.log('API Request:', {
+    method: req.method,
+    path: req.path,
+    originalUrl: req.originalUrl,
+    params: req.params,
+    query: req.query,
+    body: req.body,
+    headers: {
+      'content-type': req.headers['content-type'],
+      'user-agent': req.headers['user-agent']
+    }
+  });
   next();
 });
 

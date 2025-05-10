@@ -12,8 +12,10 @@ if (window.location.hostname.includes('netlify')) {
 // Helper function to build the correct API URL based on the environment
 function getApiUrl(endpoint) {
   if (IS_NETLIFY) {
-    // For Netlify Functions, we need to use the format: /.netlify/functions/api/tasks
-    return `${API_BASE}${endpoint}`;
+    // For Netlify Functions, we need to format the path correctly
+    // Extract the resource path without the /api prefix
+    const resourcePath = endpoint.replace('/api/', '/');
+    return `${API_BASE}${resourcePath}`;
   } else {
     // For local development, we use: /api/tasks
     return endpoint;
