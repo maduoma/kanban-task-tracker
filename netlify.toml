@@ -51,6 +51,13 @@
   status = 200
   force = true
 
+# Prisma migration function redirect
+[[redirects]]
+  from = "/prisma-migrate"
+  to = "/.netlify/functions/prisma-migrate"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/*"
   to = "/index.html"

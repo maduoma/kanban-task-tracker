@@ -98,6 +98,55 @@ async function main() {
 // Export for use in API
 module.exports = { initializeDatabase: main };
 
+// Handler for serverless function
+exports.handler = async function(event, context) {
+  // Set CORS headers
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Content-Type': 'application/json'
+  };
+  
+  // Handle preflight OPTIONS request
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ message: 'CORS preflight successful' })
+    };
+  }
+  
+  // Log the request for debugging
+  console.log('Prisma Migration Function Invoked:', {
+    method: event.httpMethod,
+    path: event.path,
+    headers: event.headers,
+    timestamp: new Date().toISOString()
+  });
+
+  try {
+    const result = await main();
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify(result)
+    };
+  } catch (error) {
+    console.error('Error in prisma-migrate function:', error);
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ 
+        success: false,
+        error: 'Server error', 
+        message: error.message,
+        stack: error.stack
+      })
+    };
+  }
+};
+
 // Run directly if called from command line
 if (require.main === module) {
   main()
