@@ -42,6 +42,4 @@
   to = "/index.html"
   status = 200
 
-# For better cold start performance
-[build.environment]
-  NODE_VERSION = "18"
+# Environment variables are already defined above
