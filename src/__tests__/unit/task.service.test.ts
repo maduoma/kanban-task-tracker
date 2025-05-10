@@ -64,7 +64,9 @@ describe('Task Service', () => {
         data: expect.objectContaining({ 
           id: expect.any(String),
           content, 
-          column: Column.TODO 
+          column: Column.TODO,
+          createdAt: expect.any(Date),
+          updatedAt: expect.any(Date)
         }),
       });
       expect(result).toEqual(mockTask);
@@ -104,7 +106,10 @@ describe('Task Service', () => {
       // Assert
       expect(prisma.task.update).toHaveBeenCalledWith({
         where: { id: taskId },
-        data: { column: Column.TODO }
+        data: expect.objectContaining({ 
+          column: Column.TODO,
+          updatedAt: expect.any(Date)
+        })
       });
       expect(result).toEqual(updatedTask);
     });
@@ -124,7 +129,10 @@ describe('Task Service', () => {
       // Assert
       expect(prisma.task.update).toHaveBeenCalledWith({
         where: { id: taskId },
-        data: { column: Column.IN_PROGRESS }
+        data: expect.objectContaining({ 
+          column: Column.IN_PROGRESS,
+          updatedAt: expect.any(Date)
+        })
       });
       expect(result).toEqual(updatedTask);
     });
@@ -144,7 +152,10 @@ describe('Task Service', () => {
       // Assert
       expect(prisma.task.update).toHaveBeenCalledWith({
         where: { id: taskId },
-        data: { column: Column.DONE }
+        data: expect.objectContaining({ 
+          column: Column.DONE,
+          updatedAt: expect.any(Date)
+        })
       });
       expect(result).toEqual(updatedTask);
     });
