@@ -68,9 +68,10 @@ console.log('Database connection info:', {
   netlifyEnv: process.env.NETLIFY || 'not set'
 });
 
-// GET tasks - handle both direct and nested paths
+// GET tasks - handle all possible path variations
 app.get('/api/tasks', getTasks);
 app.get('/tasks', getTasks);
+app.get('/api/api/tasks', getTasks); // Handle double /api/ path
 
 async function getTasks(req, res) {
   try {
@@ -84,10 +85,20 @@ async function getTasks(req, res) {
   }
 }
 
-// POST task - handle both direct and nested paths
+// POST task - handle all possible path variations
 app.post('/api/tasks', createTask);
 app.post('/tasks', createTask);
 app.post('/api/api/tasks', createTask);
+
+// Add a catch-all route for debugging purposes
+app.all('*', (req, res) => {
+  console.log('Catch-all route hit:', {
+    method: req.method,
+    path: req.path,
+    originalUrl: req.originalUrl
+  });
+  res.status(404).json({ error: `Route not found: ${req.method} ${req.originalUrl}` });
+});
 
 async function createTask(req, res) {
   try {

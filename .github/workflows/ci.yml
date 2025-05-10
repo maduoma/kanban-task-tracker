@@ -120,8 +120,8 @@ jobs:
         cp -r public/* dist/public/
         # Create a Netlify _redirects file to handle SPA routing
         echo "/* /index.html 200" > dist/public/_redirects
-        # Create a netlify.toml file for configuration
-        echo '[build]\n  publish = "dist/public"\n  command = "npm run build"\n\n[[redirects]]\n  from = "/api/*"\n  to = "/.netlify/functions/api/:splat"\n  status = 200' > netlify.toml
+        # Use the existing netlify.toml file instead of creating a new one
+        cp netlify.toml dist/
     
     - name: Deploy to Netlify
       uses: nwtgck/actions-netlify@v2.0
@@ -135,7 +135,7 @@ jobs:
         overwrites-pull-request-comment: true
       env:
         # Using GitHub secrets for Netlify deployment
-        NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN || '' }}
-        NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID || '' }}
+        NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
       # Note: You need to add NETLIFY_AUTH_TOKEN and NETLIFY_SITE_ID secrets in your GitHub repository settings
       timeout-minutes: 1
