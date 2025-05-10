@@ -8,17 +8,25 @@ console.log('Environment:', {
   API_BASE
 });
 
-// Simple function to get API URL
+// Function to get API URL without duplicate /api/
 function getApiUrl(path) {
-  return `${API_BASE}${path}`;
+  // Remove leading /api/ if present since API_BASE already points to the API root
+  const cleanPath = path.startsWith('/api/') ? path.substring(5) : path;
+  return `${API_BASE}/${cleanPath}`;
 }
 
 // Log API endpoints for debugging
 console.log('API Endpoints:', { 
-  getTasks: getApiUrl('/api/tasks'),
-  createTask: getApiUrl('/api/tasks'),
-  deleteTask: getApiUrl('/api/tasks/example-id'),
-  moveTask: getApiUrl('/api/tasks/example-id/move')
+  getTasks: getApiUrl('tasks'),
+  createTask: getApiUrl('tasks'),
+  deleteTask: getApiUrl('tasks/example-id'),
+  moveTask: getApiUrl('tasks/example-id/move')
+});
+
+// Also log the raw endpoints for verification
+console.log('Raw API endpoints:', {
+  base: API_BASE,
+  tasks: `${API_BASE}/tasks`
 });
 const addTaskButton = document.getElementById('add-task-button');
 const newTaskInput = document.getElementById('new-task-input');
@@ -107,7 +115,7 @@ function createTaskCard(task) {
 async function renderAllTasks() {
   console.log('Fetching all tasks...');
   try {
-    const res = await fetch(getApiUrl('/api/tasks'));
+    const res = await fetch(getApiUrl('tasks'));
     if (!res.ok) {
       const errorText = await res.text();
       console.error(`Error fetching tasks: ${res.status} ${res.statusText}`, errorText);
@@ -151,7 +159,7 @@ async function addTask() {
 
   // Add a timestamp to avoid caching issues
   const timestamp = new Date().getTime();
-  const apiUrl = `${getApiUrl('/api/tasks')}?t=${timestamp}`;
+  const apiUrl = `${getApiUrl('tasks')}?t=${timestamp}`;
   console.log('Sending POST request to:', apiUrl, 'with data:', { content: text });
   
   try {
@@ -244,7 +252,7 @@ async function addTask() {
     
     // Try direct API health check
     try {
-      const healthCheckUrl = getApiUrl('/api/health');
+      const healthCheckUrl = getApiUrl('health');
       console.log('Checking API health at:', healthCheckUrl);
       fetch(healthCheckUrl)
         .then(res => res.text())
@@ -262,7 +270,7 @@ async function addTask() {
 
 async function deleteTask(id) {
   try {
-    const apiUrl = getApiUrl(`/api/tasks/${id}`);
+    const apiUrl = getApiUrl(`tasks/${id}`);
     console.log(`Deleting task ${id} at URL: ${apiUrl}`);
     const response = await fetch(apiUrl, { method: 'DELETE' });
     
@@ -327,7 +335,7 @@ async function handleDrop(e) {
       
       // Then make the API call to persist the change
       console.log(`Moving task to ${newCol}`);
-      const apiUrl = getApiUrl(`/api/tasks/${draggedItem.id}/move`);
+      const apiUrl = getApiUrl(`tasks/${draggedItem.id}/move`);
       console.log(`Moving task at URL: ${apiUrl}`);
       const response = await fetch(apiUrl, {
         method: 'PUT',
