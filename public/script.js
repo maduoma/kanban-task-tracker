@@ -1,5 +1,11 @@
 // Use the Netlify function path in production, fallback to local API for development
-const API_BASE = window.location.hostname.includes('netlify') ? '/.netlify/functions/api/api/tasks' : '/api/tasks';
+let API_BASE = '/api/tasks';
+
+// Check if we're running on Netlify
+if (window.location.hostname.includes('netlify')) {
+  API_BASE = '/.netlify/functions/api/api/tasks';
+  console.log('Running on Netlify, using API path:', API_BASE);
+}
 const addTaskButton = document.getElementById('add-task-button');
 const newTaskInput = document.getElementById('new-task-input');
 const addTaskError = document.getElementById('add-task-error');
@@ -110,19 +116,37 @@ async function renderAllTasks() {
 }
 
 async function addTask() {
+  console.log('Add Task button clicked');
   const text = newTaskInput.value.trim();
-  if (!text) return addTaskError.classList.remove('hidden');
+  if (!text) {
+    console.log('No text entered');
+    return addTaskError.classList.remove('hidden');
+  }
   addTaskError.classList.add('hidden');
 
-  const res = await fetch(API_BASE, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content: text }),
-  });
+  console.log('Sending POST request to:', API_BASE);
+  try {
+    const res = await fetch(API_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: text }),
+    });
 
-  const newTask = await res.json();
-  document.getElementById('todo').appendChild(createTaskCard(newTask));
-  newTaskInput.value = '';
+    console.log('Response status:', res.status);
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error('Error response:', errorText);
+      throw new Error(`API error: ${res.status}`);
+    }
+
+    const newTask = await res.json();
+    console.log('New task created:', newTask);
+    document.getElementById('todo').appendChild(createTaskCard(newTask));
+    newTaskInput.value = '';
+  } catch (error) {
+    console.error('Error adding task:', error);
+    alert('Failed to add task. Please check the console for details.');
+  }
 }
 
 async function deleteTask(id) {
