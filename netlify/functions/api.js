@@ -37,14 +37,19 @@ app.use((req, res, next) => {
     method: req.method,
     path: req.path,
     originalUrl: req.originalUrl,
-    params: req.params,
-    query: req.query,
-    body: req.body,
-    headers: {
-      'content-type': req.headers['content-type'],
-      'user-agent': req.headers['user-agent']
-    }
+    body: req.body
   });
+  next();
+});
+
+// Add CORS headers to all responses
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
   next();
 });
 
@@ -68,14 +73,11 @@ console.log('Database connection info:', {
   netlifyEnv: process.env.NETLIFY || 'not set'
 });
 
-// GET tasks - handle all possible path variations
-app.get('/api/tasks', getTasks);
-app.get('/tasks', getTasks);
-app.get('/api/api/tasks', getTasks); // Handle double /api/ path
-
-async function getTasks(req, res) {
+// Main API routes with simplified paths
+// GET all tasks
+app.get('/api/tasks', async (req, res) => {
   try {
-    console.log(`GET ${req.path} - Fetching all tasks`);
+    console.log('Fetching all tasks');
     const tasks = await prisma.task.findMany();
     console.log(`Found ${tasks.length} tasks`);
     res.json(tasks);
@@ -83,26 +85,17 @@ async function getTasks(req, res) {
     console.error('Error fetching tasks:', error);
     res.status(500).json({ error: 'Failed to fetch tasks: ' + error.message });
   }
-}
-
-// POST task - handle all possible path variations
-app.post('/api/tasks', createTask);
-app.post('/tasks', createTask);
-app.post('/api/api/tasks', createTask);
-
-// Add a catch-all route for debugging purposes
-app.all('*', (req, res) => {
-  console.log('Catch-all route hit:', {
-    method: req.method,
-    path: req.path,
-    originalUrl: req.originalUrl
-  });
-  res.status(404).json({ error: `Route not found: ${req.method} ${req.originalUrl}` });
 });
 
-async function createTask(req, res) {
+// Fallback route for the root path
+app.get('/', (req, res) => {
+  res.json({ status: 'Kanban API is running' });
+});
+
+// POST - Create a new task
+app.post('/api/tasks', async (req, res) => {
   try {
-    console.log(`POST ${req.path} - Creating new task`, req.body);
+    console.log('Creating new task:', req.body);
     
     if (!req.body.content) {
       console.log('Content is required');
@@ -125,105 +118,66 @@ async function createTask(req, res) {
     console.error('Error creating task:', error);
     res.status(500).json({ error: 'Failed to create task: ' + error.message });
   }
-}
+});
 
-// Unified handlers for PUT requests
-app.put('/api/tasks/:id', updateTask);
-app.put('/tasks/:id', updateTask);
-app.put('/api/api/tasks/:id', updateTask);
-
-async function updateTask(req, res) {
+// DELETE - Remove a task
+app.delete('/api/tasks/:id', async (req, res) => {
   try {
-    console.log(`PUT ${req.path} - Updating task ${req.params.id}`, req.body);
     const { id } = req.params;
-    const { column } = req.body;
-    
-    if (!column) {
-      console.log('Column is required');
-      return res.status(400).json({ error: 'Column is required' });
-    }
-    
-    const task = await prisma.task.update({
-      where: { id },
-      data: { 
-        column,
-        updatedAt: new Date()
-      }
-    });
-    console.log('Updated task:', task);
-    
-    res.json(task);
-  } catch (error) {
-    console.error('Error updating task:', error);
-    res.status(400).json({ error: error.message });
-  }
-}
-
-// Unified handlers for task movement
-app.put('/api/tasks/:id/move', moveTask);
-app.put('/tasks/:id/move', moveTask);
-app.put('/api/api/tasks/:id/move', moveTask);
-
-async function moveTask(req, res) {
-  try {
-    console.log(`PUT ${req.path} - Moving task ${req.params.id}`, req.body);
-    const { id } = req.params;
-    const { column } = req.body;
-    
-    if (!column) {
-      console.log('Column is required');
-      return res.status(400).json({ error: 'Column is required' });
-    }
-    
-    const task = await prisma.task.update({
-      where: { id },
-      data: { 
-        column,
-        updatedAt: new Date()
-      }
-    });
-    console.log('Moved task:', task);
-    
-    res.json(task);
-  } catch (error) {
-    console.error('Error moving task:', error);
-    res.status(400).json({ error: error.message });
-  }
-}
-
-// Unified handlers for delete operations
-app.delete('/api/tasks/:id', deleteTask);
-app.delete('/tasks/:id', deleteTask);
-app.delete('/api/api/tasks/:id', deleteTask);
-
-async function deleteTask(req, res) {
-  try {
-    console.log(`DELETE ${req.path} - Deleting task ${req.params.id}`);
-    const { id } = req.params;
+    console.log(`Deleting task: ${id}`);
     
     await prisma.task.delete({
       where: { id }
     });
-    console.log('Task deleted successfully');
     
+    console.log('Task deleted successfully');
     res.status(204).send();
   } catch (error) {
     console.error('Error deleting task:', error);
-    res.status(400).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to delete task: ' + error.message });
   }
-}
-
-// Health check endpoints
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok',
-    database: getRedactedDatabaseUrl(),
-    environment: process.env.NODE_ENV || 'development',
-    timestamp: new Date().toISOString()
-  });
 });
 
-app.get('/health', (req, res) => {
+// PUT - Move a task to a different column
+app.put('/api/tasks/:id/move', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { column } = req.body;
+    
+    console.log(`Moving task ${id} to ${column}`);
+    
+    if (!column) {
+      return res.status(400).json({ error: 'Column is required' });
+    }
+    
+    const task = await prisma.task.update({
+      where: { id },
+      data: { 
+        column,
+        updatedAt: new Date()
+      }
+    });
+    
+    console.log('Task moved successfully:', task);
+    res.json(task);
+  } catch (error) {
+    console.error('Error moving task:', error);
+    res.status(500).json({ error: 'Failed to move task: ' + error.message });
+  }
+});
+
+// Add a catch-all route for debugging purposes
+app.all('*', (req, res) => {
+  console.log('Catch-all route hit:', {
+    method: req.method,
+    path: req.path,
+    originalUrl: req.originalUrl
+  });
+  res.status(404).json({ error: `Route not found: ${req.method} ${req.originalUrl}` });
+});
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
   res.json({ 
     status: 'ok',
     database: getRedactedDatabaseUrl(),

@@ -1,36 +1,24 @@
-// Configure API base URL for different environments
-let IS_NETLIFY = false;
+// Simple API base URL configuration
+const IS_NETLIFY = window.location.hostname.includes('netlify');
+const API_BASE = IS_NETLIFY ? '/.netlify/functions/api' : '';
 
-// Check if we're running on Netlify
-if (window.location.hostname.includes('netlify')) {
-  IS_NETLIFY = true;
-  console.log('Running on Netlify environment');
-}
-
-// Helper function to build the correct API URL based on the environment
-function getApiUrl(endpoint) {
-  if (IS_NETLIFY) {
-    // For Netlify Functions, use the direct path to the function
-    if (endpoint === '/api/tasks') {
-      return '/.netlify/functions/api/api/tasks';
-    } else if (endpoint.startsWith('/api/tasks/')) {
-      // For task-specific endpoints like /api/tasks/:id
-      const taskPath = endpoint.replace('/api/tasks/', '');
-      return `/.netlify/functions/api/api/tasks/${taskPath}`;
-    }
-  }
-  
-  // For local development or fallback
-  return endpoint;
-}
-
-// Log the API configuration for debugging
-console.log('API Configuration:', { 
+console.log('Environment:', {
   IS_NETLIFY,
-  environment: window.location.hostname,
-  tasksEndpoint: getApiUrl('/api/tasks'),
-  exampleTaskEndpoint: getApiUrl('/api/tasks/example-id'),
-  exampleMoveEndpoint: getApiUrl('/api/tasks/example-id/move')
+  hostname: window.location.hostname,
+  API_BASE
+});
+
+// Simple function to get API URL
+function getApiUrl(path) {
+  return `${API_BASE}${path}`;
+}
+
+// Log API endpoints for debugging
+console.log('API Endpoints:', { 
+  getTasks: getApiUrl('/api/tasks'),
+  createTask: getApiUrl('/api/tasks'),
+  deleteTask: getApiUrl('/api/tasks/example-id'),
+  moveTask: getApiUrl('/api/tasks/example-id/move')
 });
 const addTaskButton = document.getElementById('add-task-button');
 const newTaskInput = document.getElementById('new-task-input');
