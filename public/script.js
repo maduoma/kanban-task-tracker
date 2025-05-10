@@ -4,8 +4,8 @@ const IS_NETLIFY = window.location.hostname.includes('netlify');
 // Use the simplified API function instead of the complex one
 const API_BASE = IS_NETLIFY ? '/.netlify/functions/simple-api' : 'http://localhost:3000';
 
-// Flag to use local storage fallback if API is unavailable
-let USE_LOCAL_STORAGE = false;
+// Always use local storage for now until database permissions are fixed
+let USE_LOCAL_STORAGE = true;
 
 // Flag to indicate if we've tested the API yet
 let API_TESTED = false;
@@ -527,30 +527,11 @@ columns.forEach(col => {
 });
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // Test the API first
-  if (!API_TESTED) {
-    try {
-      console.log('Testing API health...');
-      const healthUrl = `${API_BASE}/api/health`;
-      const response = await fetch(healthUrl);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('API health check successful:', data);
-        API_TESTED = true;
-      } else {
-        console.warn('API health check failed, will use local storage');
-        USE_LOCAL_STORAGE = true;
-        API_TESTED = true;
-      }
-    } catch (error) {
-      console.error('API test failed:', error);
-      USE_LOCAL_STORAGE = true;
-      API_TESTED = true;
-    }
-  }
+  // Skip API testing since we're using local storage by default
+  console.log('Using local storage for task persistence');
+  API_TESTED = true;
   
-  // Now render the tasks
+  // Render tasks from local storage
   await renderAllTasks();
 });
 
