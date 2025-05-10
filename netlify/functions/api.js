@@ -107,9 +107,9 @@ console.log('Database connection info:', {
   netlifyEnv: process.env.NETLIFY || 'not set'
 });
 
-// Main API routes with simplified paths
+// Main API routes with simplified paths - handle both /api/tasks and /tasks patterns
 // GET all tasks
-app.get('/api/tasks', async (req, res) => {
+app.get(['*/tasks', '/tasks', '/api/tasks'], async (req, res) => {
   try {
     console.log('Fetching all tasks');
     // Set content type header explicitly
@@ -144,7 +144,7 @@ app.get('/', (req, res) => {
 });
 
 // POST - Create a new task - SIMPLIFIED VERSION
-app.post('/api/tasks', async (req, res) => {
+app.post(['*/tasks', '/tasks', '/api/tasks'], async (req, res) => {
   // Log the entire request for debugging
   console.log('POST /api/tasks request received');
   console.log('Request body:', req.body);
@@ -207,7 +207,7 @@ app.post('/api/tasks', async (req, res) => {
 });
 
 // DELETE - Remove a task
-app.delete('/api/tasks/:id', async (req, res) => {
+app.delete(['*/tasks/:id', '/tasks/:id', '/api/tasks/:id'], async (req, res) => {
   try {
     const { id } = req.params;
     console.log(`Deleting task: ${id}`);
@@ -238,7 +238,7 @@ app.delete('/api/tasks/:id', async (req, res) => {
 });
 
 // PUT - Move a task to a different column
-app.put('/api/tasks/:id/move', async (req, res) => {
+app.put(['*/tasks/:id/move', '/tasks/:id/move', '/api/tasks/:id/move'], async (req, res) => {
   try {
     const { id } = req.params;
     const { column } = req.body;
@@ -282,6 +282,23 @@ app.put('/api/tasks/:id/move', async (req, res) => {
   }
 });
 
+// Add a root route for API verification
+app.get(['/', '/api', '/api/'], (req, res) => {
+  // Set content type header explicitly
+  res.setHeader('Content-Type', 'application/json');
+  
+  return res.json({ 
+    status: 'Kanban API is running',
+    routes: [
+      '/tasks',
+      '/tasks/:id',
+      '/tasks/:id/move',
+      '/health'
+    ],
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Add a catch-all route for debugging purposes
 app.all('*', (req, res) => {
   console.log('Catch-all route hit:', {
@@ -300,7 +317,7 @@ app.all('*', (req, res) => {
 });
 
 // Health check endpoint
-app.get('/api/health', (req, res) => {
+app.get(['*/health', '/health', '/api/health'], (req, res) => {
   // Set content type header explicitly
   res.setHeader('Content-Type', 'application/json');
   

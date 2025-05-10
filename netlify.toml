@@ -14,10 +14,17 @@
   node_bundler = "esbuild"
   external_node_modules = ["@prisma/client", "prisma"]
 
-# This redirect is crucial - it routes /api/* requests to our serverless function
+# Direct API access - this allows direct access to the API function without the /api prefix
+[[redirects]]
+  from = "/tasks*"
+  to = "/.netlify/functions/api/tasks:splat"
+  status = 200
+  force = true
+
+# Traditional API access - this routes /api/* requests to our serverless function
 [[redirects]]
   from = "/api/*"
-  to = "/.netlify/functions/api/api/:splat"
+  to = "/.netlify/functions/api/:splat"
   status = 200
   force = true
 
