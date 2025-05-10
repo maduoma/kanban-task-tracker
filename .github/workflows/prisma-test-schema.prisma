@@ -1,0 +1,23 @@
+// This is a modified Prisma schema for CI testing with SQLite
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./test.db"
+}
+
+model Task {
+  id        String   @id @default(uuid())
+  content   String
+  column    Column
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum Column {
+  TODO
+  IN_PROGRESS
+  DONE
+}
