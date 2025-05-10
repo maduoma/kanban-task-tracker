@@ -6,7 +6,17 @@ yarn-error.log*
 
 # Compiled TypeScript/JavaScript
 dist/
-*.js
+
+# Allow configuration files
+!*.config.js
+!.eslintrc.js
+!eslint.config.js
+!babel.config.js
+!jest.config.js
+
+# Exclude other JS files
+/src/**/*.js
+/public/**/*.js
 *.js.map
 *.d.ts
 *.d.ts.map
