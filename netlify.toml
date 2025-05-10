@@ -37,6 +37,13 @@
   status = 200
   force = true
 
+# Database check function redirect
+[[redirects]]
+  from = "/db-check"
+  to = "/.netlify/functions/db-check"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
