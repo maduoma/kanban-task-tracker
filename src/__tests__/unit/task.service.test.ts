@@ -61,7 +61,11 @@ describe('Task Service', () => {
 
       // Assertions
       expect(prisma.task.create).toHaveBeenCalledWith({
-        data: { content, column: Column.TODO },
+        data: expect.objectContaining({ 
+          id: expect.any(String),
+          content, 
+          column: Column.TODO 
+        }),
       });
       expect(result).toEqual(mockTask);
     });

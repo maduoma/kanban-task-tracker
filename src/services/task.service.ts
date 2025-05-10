@@ -6,7 +6,16 @@ export const getAll = () => {
 };
 
 export const create = (content: string) => {
-  return prisma.task.create({ data: { content, column: Column.TODO } });
+  // Generate a unique ID for the task
+  const id = `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+  
+  return prisma.task.create({ 
+    data: { 
+      id,
+      content, 
+      column: Column.TODO 
+    } 
+  });
 };
 
 export const remove = (id: string) => {
