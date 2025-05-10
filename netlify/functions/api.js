@@ -66,6 +66,27 @@ app.use((req, res, next) => {
   next();
 });
 
+// Global middleware to ensure all responses have the correct content type
+app.use((req, res, next) => {
+  // Override res.json to always set the content type header
+  const originalJson = res.json;
+  res.json = function(body) {
+    res.setHeader('Content-Type', 'application/json');
+    return originalJson.call(this, body);
+  };
+  
+  // Override res.send to set content type for JSON objects
+  const originalSend = res.send;
+  res.send = function(body) {
+    if (body && typeof body === 'object') {
+      res.setHeader('Content-Type', 'application/json');
+    }
+    return originalSend.call(this, body);
+  };
+  
+  next();
+});
+
 // Define API routes - handle both direct and nested paths
 
 // Helper function to log database URL (with credentials hidden)
@@ -91,12 +112,29 @@ console.log('Database connection info:', {
 app.get('/api/tasks', async (req, res) => {
   try {
     console.log('Fetching all tasks');
+    // Set content type header explicitly
+    res.setHeader('Content-Type', 'application/json');
+    
     const tasks = await prisma.task.findMany();
     console.log(`Found ${tasks.length} tasks`);
-    res.json(tasks);
+    
+    // Convert tasks to plain objects to ensure they're serializable
+    const serializedTasks = tasks.map(task => ({
+      id: task.id,
+      content: task.content,
+      column: task.column,
+      createdAt: task.createdAt.toISOString(),
+      updatedAt: task.updatedAt.toISOString()
+    }));
+    
+    return res.json(serializedTasks);
   } catch (error) {
     console.error('Error fetching tasks:', error);
-    res.status(500).json({ error: 'Failed to fetch tasks: ' + error.message });
+    return res.status(500).json({ 
+      error: 'Failed to fetch tasks', 
+      message: error.message,
+      timestamp: new Date().toISOString() 
+    });
   }
 });
 
@@ -110,6 +148,9 @@ app.post('/api/tasks', async (req, res) => {
   try {
     console.log('Creating new task with body:', req.body);
     console.log('Request headers:', req.headers);
+    
+    // Set content type header explicitly
+    res.setHeader('Content-Type', 'application/json');
     
     // Validate request body
     if (!req.body) {
@@ -140,7 +181,18 @@ app.post('/api/tasks', async (req, res) => {
     const task = await prisma.task.create({ data: taskData });
     
     console.log('Task created successfully:', task);
-    res.status(201).json(task);
+    
+    // Convert task to plain object to ensure it's serializable
+    const taskObject = {
+      id: task.id,
+      content: task.content,
+      column: task.column,
+      createdAt: task.createdAt.toISOString(),
+      updatedAt: task.updatedAt.toISOString()
+    };
+    
+    // Send JSON response with explicit content type
+    return res.status(201).json(taskObject);
   } catch (error) {
     console.error('Error creating task:', error);
     console.error('Error stack:', error.stack);
@@ -150,8 +202,8 @@ app.post('/api/tasks', async (req, res) => {
       console.error('Prisma error code:', error.code);
     }
     
-    // Send detailed error response
-    res.status(500).json({ 
+    // Send detailed error response with explicit content type
+    return res.status(500).json({ 
       error: 'Failed to create task', 
       message: error.message,
       code: error.code || 'UNKNOWN',
@@ -166,15 +218,28 @@ app.delete('/api/tasks/:id', async (req, res) => {
     const { id } = req.params;
     console.log(`Deleting task: ${id}`);
     
+    // Set content type header explicitly
+    res.setHeader('Content-Type', 'application/json');
+    
     await prisma.task.delete({
       where: { id }
     });
     
     console.log('Task deleted successfully');
-    res.status(204).send();
+    // Return a JSON response instead of empty 204
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Task deleted successfully',
+      id,
+      timestamp: new Date().toISOString()
+    });
   } catch (error) {
     console.error('Error deleting task:', error);
-    res.status(500).json({ error: 'Failed to delete task: ' + error.message });
+    return res.status(500).json({ 
+      error: 'Failed to delete task', 
+      message: error.message,
+      timestamp: new Date().toISOString() 
+    });
   }
 });
 
@@ -185,6 +250,9 @@ app.put('/api/tasks/:id/move', async (req, res) => {
     const { column } = req.body;
     
     console.log(`Moving task ${id} to ${column}`);
+    
+    // Set content type header explicitly
+    res.setHeader('Content-Type', 'application/json');
     
     if (!column) {
       return res.status(400).json({ error: 'Column is required' });
@@ -199,10 +267,24 @@ app.put('/api/tasks/:id/move', async (req, res) => {
     });
     
     console.log('Task moved successfully:', task);
-    res.json(task);
+    
+    // Convert task to plain object to ensure it's serializable
+    const taskObject = {
+      id: task.id,
+      content: task.content,
+      column: task.column,
+      createdAt: task.createdAt.toISOString(),
+      updatedAt: task.updatedAt.toISOString()
+    };
+    
+    return res.json(taskObject);
   } catch (error) {
     console.error('Error moving task:', error);
-    res.status(500).json({ error: 'Failed to move task: ' + error.message });
+    return res.status(500).json({ 
+      error: 'Failed to move task', 
+      message: error.message,
+      timestamp: new Date().toISOString() 
+    });
   }
 });
 
@@ -213,12 +295,22 @@ app.all('*', (req, res) => {
     path: req.path,
     originalUrl: req.originalUrl
   });
-  res.status(404).json({ error: `Route not found: ${req.method} ${req.originalUrl}` });
+  
+  // Set content type header explicitly
+  res.setHeader('Content-Type', 'application/json');
+  
+  return res.status(404).json({ 
+    error: `Route not found: ${req.method} ${req.originalUrl}`,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ 
+  // Set content type header explicitly
+  res.setHeader('Content-Type', 'application/json');
+  
+  return res.json({ 
     status: 'ok',
     database: getRedactedDatabaseUrl(),
     environment: process.env.NODE_ENV || 'development',

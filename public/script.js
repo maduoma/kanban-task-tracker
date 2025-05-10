@@ -169,22 +169,30 @@ async function addTask() {
       return obj;
     }, {}));
     
-    let responseData;
-    const contentType = res.headers.get('content-type');
+    // Clone the response so we can read it multiple times
+    const resClone = res.clone();
     
-    if (contentType && contentType.includes('application/json')) {
-      responseData = await res.json();
-      console.log('Response data (JSON):', responseData);
-    } else {
-      const text = await res.text();
-      console.log('Response data (text):', text);
-      try {
-        // Try to parse it as JSON anyway
-        responseData = JSON.parse(text);
-      } catch (e) {
-        // Not JSON, use the text
-        responseData = { content: text, error: 'Response was not JSON' };
-      }
+    // Log the raw response text for debugging
+    const rawText = await resClone.text();
+    console.log('Raw response text:', rawText);
+    console.log('Response status:', res.status);
+    console.log('Response headers:', [...res.headers.entries()].reduce((obj, [key, val]) => {
+      obj[key] = val;
+      return obj;
+    }, {}));
+    
+    let responseData;
+    try {
+      // Try to parse as JSON
+      responseData = JSON.parse(rawText);
+      console.log('Successfully parsed response as JSON:', responseData);
+    } catch (e) {
+      console.error('Failed to parse response as JSON:', e);
+      // Not valid JSON, create an error object
+      responseData = { 
+        content: rawText.substring(0, 100) + (rawText.length > 100 ? '...' : ''), 
+        error: 'Response was not JSON'
+      };
     }
     
     if (!res.ok) {
