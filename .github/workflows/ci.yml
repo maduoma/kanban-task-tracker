@@ -133,6 +133,7 @@ jobs:
         enable-pull-request-comment: true
         enable-commit-comment: true
         overwrites-pull-request-comment: true
+        netlify-config-path: './netlify.toml'
       env:
         # Using GitHub secrets for Netlify deployment
         NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}

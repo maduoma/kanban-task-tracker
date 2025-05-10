@@ -37,9 +37,22 @@ app.use((req, res, next) => {
     method: req.method,
     path: req.path,
     originalUrl: req.originalUrl,
-    body: req.body
+    body: req.body,
+    headers: req.headers,
+    query: req.query,
+    params: req.params,
+    timestamp: new Date().toISOString()
   });
   next();
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Express error:', err);
+  res.status(500).json({
+    error: err.message,
+    stack: process.env.NODE_ENV === 'production' ? '🥞' : err.stack
+  });
 });
 
 // Add CORS headers to all responses
@@ -95,28 +108,55 @@ app.get('/', (req, res) => {
 // POST - Create a new task
 app.post('/api/tasks', async (req, res) => {
   try {
-    console.log('Creating new task:', req.body);
+    console.log('Creating new task with body:', req.body);
+    console.log('Request headers:', req.headers);
     
-    if (!req.body.content) {
-      console.log('Content is required');
-      return res.status(400).json({ error: 'Content is required' });
+    // Validate request body
+    if (!req.body) {
+      console.error('No request body received');
+      return res.status(400).json({ error: 'Request body is required' });
     }
     
-    const task = await prisma.task.create({
-      data: {
-        id: `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-        content: req.body.content,
-        column: req.body.column || 'TODO',
-        createdAt: new Date(),
-        updatedAt: new Date()
-      }
-    });
+    if (!req.body.content) {
+      console.error('Content field missing in request body');
+      return res.status(400).json({ error: 'Content field is required' });
+    }
     
-    console.log('Created new task:', task);
+    // Generate a unique ID for the task
+    const taskId = `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    console.log('Generated task ID:', taskId);
+    
+    // Prepare data for Prisma
+    const taskData = {
+      id: taskId,
+      content: req.body.content,
+      column: req.body.column || 'TODO',
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    console.log('Task data to be inserted:', taskData);
+    
+    // Create the task in the database
+    const task = await prisma.task.create({ data: taskData });
+    
+    console.log('Task created successfully:', task);
     res.status(201).json(task);
   } catch (error) {
     console.error('Error creating task:', error);
-    res.status(500).json({ error: 'Failed to create task: ' + error.message });
+    console.error('Error stack:', error.stack);
+    
+    // Check for specific Prisma errors
+    if (error.code) {
+      console.error('Prisma error code:', error.code);
+    }
+    
+    // Send detailed error response
+    res.status(500).json({ 
+      error: 'Failed to create task', 
+      message: error.message,
+      code: error.code || 'UNKNOWN',
+      timestamp: new Date().toISOString()
+    });
   }
 });
 

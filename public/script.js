@@ -150,8 +150,13 @@ async function addTask() {
   addTaskError.classList.add('hidden');
 
   const apiUrl = getApiUrl('/api/tasks');
-  console.log('Sending POST request to:', apiUrl);
+  console.log('Sending POST request to:', apiUrl, 'with data:', { content: text });
+  
   try {
+    // Show loading state
+    addTaskButton.disabled = true;
+    addTaskButton.textContent = 'Adding...';
+    
     const res = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -159,19 +164,44 @@ async function addTask() {
     });
 
     console.log('Response status:', res.status);
+    console.log('Response headers:', [...res.headers.entries()].reduce((obj, [key, val]) => {
+      obj[key] = val;
+      return obj;
+    }, {}));
+    
+    let responseData;
+    const contentType = res.headers.get('content-type');
+    
+    if (contentType && contentType.includes('application/json')) {
+      responseData = await res.json();
+      console.log('Response data (JSON):', responseData);
+    } else {
+      const text = await res.text();
+      console.log('Response data (text):', text);
+      try {
+        // Try to parse it as JSON anyway
+        responseData = JSON.parse(text);
+      } catch (e) {
+        // Not JSON, use the text
+        responseData = { content: text, error: 'Response was not JSON' };
+      }
+    }
+    
     if (!res.ok) {
-      const errorText = await res.text();
-      console.error('Error response:', errorText);
-      throw new Error(`API error: ${res.status}`);
+      throw new Error(responseData?.error || `API error: ${res.status}`);
     }
 
-    const newTask = await res.json();
-    console.log('New task created:', newTask);
-    document.getElementById('todo').appendChild(createTaskCard(newTask));
+    console.log('New task created:', responseData);
+    document.getElementById('todo').appendChild(createTaskCard(responseData));
     newTaskInput.value = '';
   } catch (error) {
     console.error('Error adding task:', error);
-    alert('Failed to add task. Please check the console for details.');
+    addTaskError.textContent = `Failed to add task: ${error.message}`;
+    addTaskError.classList.remove('hidden');
+  } finally {
+    // Reset button state
+    addTaskButton.disabled = false;
+    addTaskButton.textContent = 'Add Task';
   }
 }
 

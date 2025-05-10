@@ -9,6 +9,11 @@
   targetPort = 3000
   publish = "public"
 
+# Function configuration
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["@prisma/client", "prisma"]
+
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
@@ -19,3 +24,7 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# For better cold start performance
+[build.environment]
+  NODE_VERSION = "18"
