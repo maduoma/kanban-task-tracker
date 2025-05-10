@@ -157,9 +157,9 @@ async function addTask() {
   }
   addTaskError.classList.add('hidden');
 
-  // Add a timestamp to avoid caching issues
+  // Use the dedicated create-task function instead of the main API
   const timestamp = new Date().getTime();
-  const apiUrl = `${getApiUrl('tasks')}?t=${timestamp}`;
+  const apiUrl = `/.netlify/functions/create-task?t=${timestamp}`;
   console.log('Sending POST request to:', apiUrl, 'with data:', { content: text });
   
   try {
