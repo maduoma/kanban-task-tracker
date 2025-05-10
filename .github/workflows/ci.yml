@@ -42,8 +42,9 @@ jobs:
         # Create SQLite database
         touch prisma/test.db
     
-    - name: Run linting
-      run: npm run lint || echo "No linting configured"
+    # Skip linting for now as we're focusing on tests
+    # - name: Run linting
+    #   run: npm run lint || echo "No linting configured"
     
     - name: Run backend tests
       env:

@@ -1,0 +1,22 @@
+# Node modules
+node_modules/
+
+# Build output
+dist/
+
+# Coverage reports
+coverage/
+
+# Configuration files
+*.config.js
+.eslintrc.js
+eslint.config.js
+babel.config.js
+jest.config.js
+jest.setup.js
+
+# Prisma
+prisma/
+
+# GitHub Actions
+.github/
