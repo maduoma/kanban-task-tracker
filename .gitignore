@@ -16,7 +16,8 @@ dist/
 
 # Exclude other JS files
 /src/**/*.js
-/public/**/*.js
+# Allow public JavaScript files for frontend
+!public/**/*.js
 *.js.map
 *.d.ts
 *.d.ts.map

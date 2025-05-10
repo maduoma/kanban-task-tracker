@@ -66,6 +66,28 @@ app.put('/api/tasks/:id', async (req, res) => {
   }
 });
 
+// Add endpoint for moving tasks between columns
+app.put('/api/tasks/:id/move', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { column } = req.body;
+    
+    if (!column) {
+      return res.status(400).json({ error: 'Column is required' });
+    }
+    
+    const task = await prisma.task.update({
+      where: { id },
+      data: { column }
+    });
+    
+    res.json(task);
+  } catch (error) {
+    console.error('Error moving task:', error);
+    res.status(400).json({ error: error.message });
+  }
+});
+
 app.delete('/api/tasks/:id', async (req, res) => {
   try {
     const { id } = req.params;
