@@ -115,26 +115,20 @@ jobs:
       run: |
         # Build the backend
         npm run build
-        # Create a Netlify-compatible build
-        mkdir -p dist/public
-        cp -r public/* dist/public/
-        # Create a Netlify _redirects file to handle SPA routing
-        echo "/* /index.html 200" > dist/public/_redirects
-        # Use the existing netlify.toml file instead of creating a new one
-        cp netlify.toml dist/
+        # Ensure the netlify/functions directory exists
+        mkdir -p netlify/functions
+        # Ensure Prisma client is generated
+        npx prisma generate
+        # Copy netlify.toml to root if it's not already there
+        cp -f netlify.toml ./
     
     - name: Deploy to Netlify
-      uses: nwtgck/actions-netlify@v2.0
+      uses: jsmrcaga/action-netlify-deploy@v2.0.0
       with:
-        publish-dir: './dist/public'
-        production-branch: main
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        deploy-message: 'Deploy from GitHub Actions'
-        enable-pull-request-comment: true
-        enable-commit-comment: true
-        overwrites-pull-request-comment: true
-      env:
         NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
         NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        NETLIFY_DEPLOY_TO_PROD: true
+        build_directory: "public"
+        NETLIFY_DEPLOY_MESSAGE: "Deploy from GitHub Actions"
       # Note: You need to add NETLIFY_AUTH_TOKEN and NETLIFY_SITE_ID secrets in your GitHub repository settings
-      timeout-minutes: 1
+      timeout-minutes: 2

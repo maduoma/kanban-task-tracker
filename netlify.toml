@@ -2,6 +2,9 @@
   publish = "public"
   command = "npm run build"
   functions = "netlify/functions"
+  
+  # Ensure we're using Node.js 18.x for functions
+  environment = { NODE_VERSION = "18" }
 
 [dev]
   command = "npm run dev"
@@ -11,20 +14,26 @@
 
 # Function configuration
 [functions]
+  # Use the default bundler for simplicity
   node_bundler = "esbuild"
-  external_node_modules = ["@prisma/client", "prisma"]
+  # Include these modules in the bundle
+  included_files = ["prisma/**/*"]
+  # Set specific environment variables for functions
+  [functions.environment]
+    NODE_ENV = "production"
+    DEBUG = "*"
 
-# Direct API access - this allows direct access to the API function without the /api prefix
-[[redirects]]
-  from = "/tasks*"
-  to = "/.netlify/functions/api/tasks:splat"
-  status = 200
-  force = true
-
-# Traditional API access - this routes /api/* requests to our serverless function
+# Simple redirects for API endpoints
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
+  status = 200
+  force = true
+
+# Test function redirect for diagnostics
+[[redirects]]
+  from = "/test"
+  to = "/.netlify/functions/test"
   status = 200
   force = true
 

@@ -1,9 +1,14 @@
 // Simple API base URL configuration
 const IS_NETLIFY = window.location.hostname.includes('netlify');
-const API_BASE = IS_NETLIFY ? '/.netlify/functions/api' : 'http://localhost:3000';
+
+// Use the simplified API function instead of the complex one
+const API_BASE = IS_NETLIFY ? '/.netlify/functions/simple-api' : 'http://localhost:3000';
 
 // Flag to use local storage fallback if API is unavailable
 let USE_LOCAL_STORAGE = false;
+
+// Flag to indicate if we've tested the API yet
+let API_TESTED = false;
 
 console.log('Environment:', {
   IS_NETLIFY,
@@ -11,11 +16,13 @@ console.log('Environment:', {
   API_BASE
 });
 
-// Function to get API URL without duplicate /api/
+// Function to get API URL - simplified for the new API
 function getApiUrl(path) {
   // Remove leading /api/ if present since API_BASE already points to the API root
   const cleanPath = path.startsWith('/api/') ? path.substring(5) : path;
-  return `${API_BASE}/${cleanPath}`;
+  // Remove leading slash if present
+  const finalPath = cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath;
+  return `${API_BASE}/api/${finalPath}`;
 }
 
 // Log API endpoints for debugging
@@ -519,7 +526,33 @@ columns.forEach(col => {
   col.addEventListener('drop', handleDrop);
 });
 
-document.addEventListener('DOMContentLoaded', renderAllTasks);
+document.addEventListener('DOMContentLoaded', async () => {
+  // Test the API first
+  if (!API_TESTED) {
+    try {
+      console.log('Testing API health...');
+      const healthUrl = `${API_BASE}/api/health`;
+      const response = await fetch(healthUrl);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('API health check successful:', data);
+        API_TESTED = true;
+      } else {
+        console.warn('API health check failed, will use local storage');
+        USE_LOCAL_STORAGE = true;
+        API_TESTED = true;
+      }
+    } catch (error) {
+      console.error('API test failed:', error);
+      USE_LOCAL_STORAGE = true;
+      API_TESTED = true;
+    }
+  }
+  
+  // Now render the tasks
+  await renderAllTasks();
+});
 
 // Export functions for testing
 if (typeof window !== 'undefined') {
