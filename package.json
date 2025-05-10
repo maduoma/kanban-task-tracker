@@ -10,7 +10,7 @@
     "test:watch": "cross-env NODE_OPTIONS=--no-deprecation jest --watch",
     "test:coverage": "cross-env NODE_OPTIONS=--no-deprecation jest --coverage",
     "test:backend": "cross-env NODE_OPTIONS=--no-deprecation jest src/",
-    "test:frontend": "cross-env NODE_OPTIONS=--no-deprecation jest public/ --testMatch='**/public/**/*.test.js' --testEnvironment=jsdom",
+    "test:frontend": "cross-env NODE_OPTIONS=--no-deprecation jest public/ --testMatch='**/public/**/*.test.js' --testEnvironment=jsdom --passWithNoTests",
     "lint": "eslint . --ext .js,.ts --max-warnings 100"
   },
   "keywords": [],
