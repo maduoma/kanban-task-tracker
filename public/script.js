@@ -1,6 +1,9 @@
 // Simple API base URL configuration
 const IS_NETLIFY = window.location.hostname.includes('netlify');
-const API_BASE = IS_NETLIFY ? '/.netlify/functions/api' : '';
+const API_BASE = IS_NETLIFY ? '/.netlify/functions/api' : 'http://localhost:3000';
+
+// Flag to use local storage fallback if API is unavailable
+let USE_LOCAL_STORAGE = false;
 
 console.log('Environment:', {
   IS_NETLIFY,
@@ -112,17 +115,49 @@ function createTaskCard(task) {
   return card;
 }
 
+// Local storage functions for fallback mode
+function saveTasksToLocalStorage(tasks) {
+  localStorage.setItem('kanban_tasks', JSON.stringify(tasks));
+  console.log('Tasks saved to local storage:', tasks);
+}
+
+function getTasksFromLocalStorage() {
+  try {
+    const tasks = JSON.parse(localStorage.getItem('kanban_tasks')) || [];
+    console.log('Tasks loaded from local storage:', tasks);
+    return tasks;
+  } catch (error) {
+    console.error('Error loading tasks from local storage:', error);
+    return [];
+  }
+}
+
 async function renderAllTasks() {
   console.log('Fetching all tasks...');
   try {
-    const res = await fetch(getApiUrl('tasks'));
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error(`Error fetching tasks: ${res.status} ${res.statusText}`, errorText);
-      return;
+    let tasks = [];
+    
+    if (!USE_LOCAL_STORAGE) {
+      try {
+        const res = await fetch(getApiUrl('tasks'));
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error(`Error fetching tasks: ${res.status} ${res.statusText}`, errorText);
+          throw new Error('API unavailable');
+        }
+        tasks = await res.json();
+        console.log('Tasks fetched successfully from API:', tasks);
+      } catch (apiError) {
+        console.warn('API unavailable, falling back to local storage:', apiError);
+        USE_LOCAL_STORAGE = true;
+        tasks = getTasksFromLocalStorage();
+      }
+    } else {
+      tasks = getTasksFromLocalStorage();
+      console.log('Using local storage for tasks:', tasks);
     }
-    const tasks = await res.json();
-    console.log('Tasks fetched successfully:', tasks);
+    
+    // Clear existing tasks
     columns.forEach(col => col.querySelectorAll('.task-card').forEach(c => c.remove()));
   
     // Column mapping from database to UI
@@ -145,6 +180,10 @@ async function renderAllTasks() {
     });
   } catch (error) {
     console.error('Error rendering tasks:', error);
+    // Last resort fallback - show a user-friendly error
+    addTaskError.textContent = 'Could not load tasks. Working in offline mode.';
+    addTaskError.classList.remove('hidden');
+    addTaskError.style.color = 'orange';
   }
 }
 
@@ -157,88 +196,111 @@ async function addTask() {
   }
   addTaskError.classList.add('hidden');
 
-  // Use the dedicated create-task function instead of the main API
-  const timestamp = new Date().getTime();
-  const apiUrl = `/.netlify/functions/create-task?t=${timestamp}`;
-  console.log('Sending POST request to:', apiUrl, 'with data:', { content: text });
+  // Show loading state
+  addTaskButton.disabled = true;
+  addTaskButton.textContent = 'Adding...';
+  addTaskError.textContent = '';
   
   try {
-    // Show loading state
-    addTaskButton.disabled = true;
-    addTaskButton.textContent = 'Adding...';
-    addTaskError.textContent = '';
+    // Generate a new task object
+    const taskId = `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    const newTask = {
+      id: taskId,
+      content: text,
+      column: 'TODO',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
     
-    // Log the full request details
-    const requestBody = JSON.stringify({ content: text });
-    console.log('Request body:', requestBody);
-    console.log('Request body length:', requestBody.length);
-    
-    // Make the request with explicit mode and credentials
-    const res = await fetch(apiUrl, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Cache-Control': 'no-cache, no-store'
-      },
-      body: requestBody,
-      mode: 'cors',
-      credentials: 'same-origin'
-    });
-
-    console.log('Response received');
-    console.log('Response status:', res.status);
-    console.log('Response status text:', res.statusText);
-    console.log('Response type:', res.type);
-    console.log('Response URL:', res.url);
-    console.log('Response headers:', [...res.headers.entries()].reduce((obj, [key, val]) => {
-      obj[key] = val;
-      return obj;
-    }, {}));
-    
-    // Get the raw text response
-    const rawText = await res.text();
-    console.log('Raw response text:', rawText);
-    console.log('Raw response length:', rawText.length);
-    
-    // Try to detect if it's HTML instead of JSON
-    const isHtml = rawText.trim().startsWith('<!DOCTYPE html>') || 
-                  rawText.trim().startsWith('<html>') ||
-                  rawText.includes('<body');
-    
-    if (isHtml) {
-      console.error('Received HTML instead of JSON. This might be a server error page or redirect');
-      throw new Error('Server returned HTML instead of JSON');
+    // If using local storage, add task directly
+    if (USE_LOCAL_STORAGE) {
+      console.log('Adding task to local storage:', newTask);
+      const tasks = getTasksFromLocalStorage();
+      tasks.push(newTask);
+      saveTasksToLocalStorage(tasks);
+      
+      // Update UI
+      document.getElementById('todo').appendChild(createTaskCard(newTask));
+      newTaskInput.value = '';
+      
+      // Show success message
+      addTaskError.textContent = 'Task added successfully (offline mode)!';
+      addTaskError.classList.remove('hidden');
+      addTaskError.style.color = 'green';
+      
+      // Hide success message after 3 seconds
+      setTimeout(() => {
+        addTaskError.classList.add('hidden');
+        addTaskError.style.color = 'red';
+      }, 3000);
+      
+      return;
     }
     
-    let responseData;
+    // Try API first
     try {
-      // Try to parse as JSON
-      responseData = JSON.parse(rawText);
-      console.log('Successfully parsed response as JSON:', responseData);
-    } catch (e) {
-      console.error('Failed to parse response as JSON:', e);
-      // Not valid JSON, create an error object with more details
-      responseData = { 
-        content: rawText.substring(0, 200) + (rawText.length > 200 ? '...' : ''), 
-        error: 'Response was not JSON',
-        parseError: e.message
-      };
-      throw new Error(`Failed to parse response as JSON: ${e.message}`);
-    }
-    
-    if (!res.ok) {
-      throw new Error(responseData?.error || `API error: ${res.status} - ${res.statusText}`);
-    }
+      // Use the dedicated create-task function
+      const timestamp = new Date().getTime();
+      const apiUrl = `/.netlify/functions/create-task?t=${timestamp}`;
+      console.log('Sending POST request to:', apiUrl, 'with data:', { content: text });
+      
+      const requestBody = JSON.stringify({ content: text });
+      console.log('Request body:', requestBody);
+      
+      // Make the request with explicit mode and credentials
+      const res = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache, no-store'
+        },
+        body: requestBody,
+        mode: 'cors',
+        credentials: 'same-origin'
+      });
 
-    console.log('New task created:', responseData);
-    document.getElementById('todo').appendChild(createTaskCard(responseData));
-    newTaskInput.value = '';
-    
-    // Show success message
-    addTaskError.textContent = 'Task added successfully!';
-    addTaskError.classList.remove('hidden');
-    addTaskError.style.color = 'green';
+      console.log('Response received');
+      console.log('Response status:', res.status);
+      
+      if (!res.ok) {
+        // Get the raw text response for debugging
+        const rawText = await res.text();
+        console.log('Raw error response:', rawText);
+        throw new Error(`API error: ${res.status}`);
+      }
+      
+      const responseData = await res.json();
+      console.log('New task created via API:', responseData);
+      
+      // Update UI
+      document.getElementById('todo').appendChild(createTaskCard(responseData));
+      newTaskInput.value = '';
+      
+      // Show success message
+      addTaskError.textContent = 'Task added successfully!';
+      addTaskError.classList.remove('hidden');
+      addTaskError.style.color = 'green';
+    } catch (apiError) {
+      console.error('API error, falling back to local storage:', apiError);
+      
+      // Switch to local storage mode
+      USE_LOCAL_STORAGE = true;
+      
+      // Add task to local storage
+      const tasks = getTasksFromLocalStorage();
+      tasks.push(newTask);
+      saveTasksToLocalStorage(tasks);
+      
+      // Update UI
+      document.getElementById('todo').appendChild(createTaskCard(newTask));
+      newTaskInput.value = '';
+      
+      // Show fallback success message
+      addTaskError.textContent = 'Task added in offline mode (API unavailable)';
+      addTaskError.classList.remove('hidden');
+      addTaskError.style.color = 'orange';
+    }
     
     // Hide success message after 3 seconds
     setTimeout(() => {
@@ -249,18 +311,6 @@ async function addTask() {
     console.error('Error adding task:', error);
     addTaskError.textContent = `Failed to add task: ${error.message}`;
     addTaskError.classList.remove('hidden');
-    
-    // Try direct API health check
-    try {
-      const healthCheckUrl = getApiUrl('health');
-      console.log('Checking API health at:', healthCheckUrl);
-      fetch(healthCheckUrl)
-        .then(res => res.text())
-        .then(text => console.log('Health check response:', text))
-        .catch(err => console.error('Health check failed:', err));
-    } catch (healthError) {
-      console.error('Error checking API health:', healthError);
-    }
   } finally {
     // Reset button state
     addTaskButton.disabled = false;
@@ -270,19 +320,53 @@ async function addTask() {
 
 async function deleteTask(id) {
   try {
-    const apiUrl = getApiUrl(`tasks/${id}`);
-    console.log(`Deleting task ${id} at URL: ${apiUrl}`);
-    const response = await fetch(apiUrl, { method: 'DELETE' });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Error deleting task: ${response.status}`, errorText);
-      throw new Error(`Failed to delete task: ${response.status}`);
+    if (USE_LOCAL_STORAGE) {
+      // Delete from local storage
+      console.log(`Deleting task ${id} from local storage`);
+      const tasks = getTasksFromLocalStorage();
+      const updatedTasks = tasks.filter(task => task.id !== id);
+      saveTasksToLocalStorage(updatedTasks);
+      
+      // Remove from UI
+      const elem = document.getElementById(id);
+      if (elem) elem.remove();
+      
+      console.log(`Task ${id} deleted successfully from local storage`);
+      return;
     }
     
-    console.log(`Task ${id} deleted successfully`);
-    const elem = document.getElementById(id);
-    if (elem) elem.remove();
+    // Try API first
+    try {
+      const apiUrl = getApiUrl(`tasks/${id}`);
+      console.log(`Deleting task ${id} at URL: ${apiUrl}`);
+      const response = await fetch(apiUrl, { method: 'DELETE' });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Error deleting task: ${response.status}`, errorText);
+        throw new Error(`Failed to delete task: ${response.status}`);
+      }
+      
+      console.log(`Task ${id} deleted successfully via API`);
+      const elem = document.getElementById(id);
+      if (elem) elem.remove();
+    } catch (apiError) {
+      console.error('API error, falling back to local storage:', apiError);
+      
+      // Switch to local storage mode
+      USE_LOCAL_STORAGE = true;
+      
+      // Delete from local storage
+      const tasks = getTasksFromLocalStorage();
+      const updatedTasks = tasks.filter(task => task.id !== id);
+      saveTasksToLocalStorage(updatedTasks);
+      
+      // Remove from UI
+      const elem = document.getElementById(id);
+      if (elem) elem.remove();
+      
+      console.log(`Task ${id} deleted from local storage after API failure`);
+    }
   } catch (error) {
     console.error('Error deleting task:', error);
     alert('Failed to delete task. Please check the console for details.');
@@ -328,42 +412,84 @@ async function handleDrop(e) {
   const currCol = columnMap[draggedItem.parentElement.id];
 
   if (newCol !== currCol) {
+    // First update the UI immediately for better user experience
+    const after = getDragAfterElement(col, e.clientY);
+    after ? col.insertBefore(draggedItem, after) : col.appendChild(draggedItem);
+    
     try {
-      // First update the UI immediately for better user experience
-      const after = getDragAfterElement(col, e.clientY);
-      after ? col.insertBefore(draggedItem, after) : col.appendChild(draggedItem);
-      
-      // Then make the API call to persist the change
-      console.log(`Moving task to ${newCol}`);
-      const apiUrl = getApiUrl(`tasks/${draggedItem.id}/move`);
-      console.log(`Moving task at URL: ${apiUrl}`);
-      const response = await fetch(apiUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ column: newCol }),
-      });
-      
-      // Check if the response is valid JSON
-      const contentType = response.headers.get('content-type');
-      let responseData;
-      
-      if (contentType && contentType.includes('application/json')) {
-        responseData = await response.json();
+      if (USE_LOCAL_STORAGE) {
+        // Update in local storage
+        console.log(`Moving task ${draggedItem.id} to ${newCol} in local storage`);
+        const tasks = getTasksFromLocalStorage();
+        const taskIndex = tasks.findIndex(task => task.id === draggedItem.id);
+        
+        if (taskIndex !== -1) {
+          tasks[taskIndex].column = newCol;
+          tasks[taskIndex].updatedAt = new Date().toISOString();
+          saveTasksToLocalStorage(tasks);
+          console.log(`Task moved successfully in local storage`);
+          
+          // Trigger confetti for DONE column
+          if (newCol === 'DONE') {
+            console.log('Task moved to DONE column, triggering confetti...');
+            triggerConfetti();
+          }
+        }
+        
+        return;
       }
       
-      if (!response.ok) {
-        throw new Error(responseData?.error || `API error: ${response.status}`);
-      }
-      
-      // Trigger confetti AFTER successful API call
-      if (newCol === 'DONE') {
-        console.log('Task moved to DONE column, triggering confetti...');
-        triggerConfetti();
+      // Try API first
+      try {
+        console.log(`Moving task to ${newCol}`);
+        const apiUrl = getApiUrl(`tasks/${draggedItem.id}/move`);
+        console.log(`Moving task at URL: ${apiUrl}`);
+        const response = await fetch(apiUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ column: newCol }),
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Error moving task: ${response.status}`, errorText);
+          throw new Error(`Failed to move task: ${response.status}`);
+        }
+        
+        console.log('Task moved successfully via API');
+        
+        // Trigger confetti AFTER successful API call
+        if (newCol === 'DONE') {
+          console.log('Task moved to DONE column, triggering confetti...');
+          triggerConfetti();
+        }
+      } catch (apiError) {
+        console.error('API error, falling back to local storage:', apiError);
+        
+        // Switch to local storage mode
+        USE_LOCAL_STORAGE = true;
+        
+        // Update in local storage
+        const tasks = getTasksFromLocalStorage();
+        const taskIndex = tasks.findIndex(task => task.id === draggedItem.id);
+        
+        if (taskIndex !== -1) {
+          tasks[taskIndex].column = newCol;
+          tasks[taskIndex].updatedAt = new Date().toISOString();
+          saveTasksToLocalStorage(tasks);
+          console.log(`Task moved successfully in local storage after API failure`);
+          
+          // Trigger confetti for DONE column
+          if (newCol === 'DONE') {
+            console.log('Task moved to DONE column, triggering confetti...');
+            triggerConfetti();
+          }
+        }
       }
     } catch (error) {
       console.error('Error moving task:', error);
       // Don't show alert to user, just log the error
-      console.warn('API call failed but UI was updated anyway for better UX');
+      console.warn('UI was updated anyway for better UX');
     }
   }
 
