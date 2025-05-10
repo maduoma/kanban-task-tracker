@@ -1,47 +1,21 @@
 // Netlify serverless function to handle API requests
 const express = require('express');
 const serverless = require('serverless-http');
+const { PrismaClient } = require('@prisma/client');
 const cors = require('cors');
 
 // Initialize Express app
 const app = express();
 
-// In-memory data store that persists between function invocations
-// This works because Netlify keeps the function container alive between requests
-let tasks = [
-  { id: '1', content: 'Example Task 1', column: 'TODO' },
-  { id: '2', content: 'Example Task 2', column: 'IN_PROGRESS' },
-  { id: '3', content: 'Example Task 3', column: 'DONE' }
-];
-
-// Helper functions for task operations
-const taskStore = {
-  findAll: () => tasks,
-  create: (data) => {
-    const newTask = {
-      id: `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-      content: data.content,
-      column: data.column || 'TODO'
-    };
-    tasks.push(newTask);
-    return newTask;
-  },
-  update: (id, data) => {
-    const taskIndex = tasks.findIndex(task => task.id === id);
-    if (taskIndex === -1) throw new Error('Task not found');
-    
-    tasks[taskIndex] = { ...tasks[taskIndex], ...data };
-    return tasks[taskIndex];
-  },
-  delete: (id) => {
-    const taskIndex = tasks.findIndex(task => task.id === id);
-    if (taskIndex === -1) throw new Error('Task not found');
-    
-    const deletedTask = tasks[taskIndex];
-    tasks = tasks.filter(task => task.id !== id);
-    return deletedTask;
-  }
-};
+// Initialize Prisma client with better error handling
+let prisma;
+try {
+  prisma = new PrismaClient();
+  console.log('Prisma client initialized successfully');
+} catch (error) {
+  console.error('Failed to initialize Prisma client:', error);
+  throw error; // Re-throw to ensure we don't proceed with a broken database connection
+}
 
 // Middleware
 app.use(cors());
@@ -59,9 +33,9 @@ app.use((req, res, next) => {
 app.get('/api/tasks', async (req, res) => {
   try {
     console.log('GET /api/tasks - Fetching all tasks');
-    const allTasks = taskStore.findAll();
-    console.log(`Found ${allTasks.length} tasks`);
-    res.json(allTasks);
+    const tasks = await prisma.task.findMany();
+    console.log(`Found ${tasks.length} tasks`);
+    res.json(tasks);
   } catch (error) {
     console.error('Error fetching tasks:', error);
     res.status(500).json({ error: 'Failed to fetch tasks' });
@@ -72,9 +46,9 @@ app.get('/api/tasks', async (req, res) => {
 app.get('/api/api/tasks', async (req, res) => {
   try {
     console.log('GET /api/api/tasks - Fetching all tasks (nested path)');
-    const allTasks = taskStore.findAll();
-    console.log(`Found ${allTasks.length} tasks`);
-    res.json(allTasks);
+    const tasks = await prisma.task.findMany();
+    console.log(`Found ${tasks.length} tasks`);
+    res.json(tasks);
   } catch (error) {
     console.error('Error fetching tasks:', error);
     res.status(500).json({ error: 'Failed to fetch tasks' });
@@ -92,9 +66,11 @@ app.post('/api/tasks', async (req, res) => {
       return res.status(400).json({ error: 'Content is required' });
     }
     
-    const task = taskStore.create({
-      content,
-      column: column || 'TODO'
+    const task = await prisma.task.create({
+      data: {
+        content,
+        column: column || 'TODO'
+      }
     });
     
     console.log('Created new task:', task);
@@ -116,9 +92,11 @@ app.post('/api/api/tasks', async (req, res) => {
       return res.status(400).json({ error: 'Content is required' });
     }
     
-    const task = taskStore.create({
-      content,
-      column: column || 'TODO'
+    const task = await prisma.task.create({
+      data: {
+        content,
+        column: column || 'TODO'
+      }
     });
     
     console.log('Created new task:', task);
@@ -141,7 +119,10 @@ app.put('/api/tasks/:id', async (req, res) => {
       return res.status(400).json({ error: 'Column is required' });
     }
     
-    const task = taskStore.update(id, { column });
+    const task = await prisma.task.update({
+      where: { id },
+      data: { column }
+    });
     console.log('Updated task:', task);
     
     res.json(task);
@@ -163,7 +144,10 @@ app.put('/api/api/tasks/:id', async (req, res) => {
       return res.status(400).json({ error: 'Column is required' });
     }
     
-    const task = taskStore.update(id, { column });
+    const task = await prisma.task.update({
+      where: { id },
+      data: { column }
+    });
     console.log('Updated task:', task);
     
     res.json(task);
@@ -185,7 +169,10 @@ app.put('/api/tasks/:id/move', async (req, res) => {
       return res.status(400).json({ error: 'Column is required' });
     }
     
-    const task = taskStore.update(id, { column });
+    const task = await prisma.task.update({
+      where: { id },
+      data: { column }
+    });
     console.log('Moved task:', task);
     
     res.json(task);
@@ -207,7 +194,10 @@ app.put('/api/api/tasks/:id/move', async (req, res) => {
       return res.status(400).json({ error: 'Column is required' });
     }
     
-    const task = taskStore.update(id, { column });
+    const task = await prisma.task.update({
+      where: { id },
+      data: { column }
+    });
     console.log('Moved task:', task);
     
     res.json(task);
@@ -223,8 +213,10 @@ app.delete('/api/tasks/:id', async (req, res) => {
     console.log(`DELETE /api/tasks/${req.params.id} - Deleting task`);
     const { id } = req.params;
     
-    const deletedTask = taskStore.delete(id);
-    console.log('Deleted task:', deletedTask);
+    await prisma.task.delete({
+      where: { id }
+    });
+    console.log('Task deleted successfully');
     
     res.status(204).send();
   } catch (error) {
@@ -239,8 +231,10 @@ app.delete('/api/api/tasks/:id', async (req, res) => {
     console.log(`DELETE /api/api/tasks/${req.params.id} (nested path) - Deleting task`);
     const { id } = req.params;
     
-    const deletedTask = taskStore.delete(id);
-    console.log('Deleted task:', deletedTask);
+    await prisma.task.delete({
+      where: { id }
+    });
+    console.log('Task deleted successfully');
     
     res.status(204).send();
   } catch (error) {
