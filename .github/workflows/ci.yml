@@ -112,12 +112,21 @@ jobs:
       run: npm ci
     
     - name: Build for production
-      run: npm run build
+      run: |
+        # Build the backend
+        npm run build
+        # Create a Netlify-compatible build
+        mkdir -p dist/public
+        cp -r public/* dist/public/
+        # Create a Netlify _redirects file to handle SPA routing
+        echo "/* /index.html 200" > dist/public/_redirects
+        # Create a netlify.toml file for configuration
+        echo '[build]\n  publish = "dist/public"\n  command = "npm run build"\n\n[[redirects]]\n  from = "/api/*"\n  to = "/.netlify/functions/api/:splat"\n  status = 200' > netlify.toml
     
     - name: Deploy to Netlify
       uses: nwtgck/actions-netlify@v2.0
       with:
-        publish-dir: './dist'
+        publish-dir: './dist/public'
         production-branch: main
         github-token: ${{ secrets.GITHUB_TOKEN }}
         deploy-message: 'Deploy from GitHub Actions'
