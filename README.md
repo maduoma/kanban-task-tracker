@@ -2,6 +2,8 @@
 
 A simple Kanban board application for tracking tasks across different stages of completion. This application allows users to create, move, and delete tasks with a clean and intuitive interface.
 
+**Live Demo:** [https://kanban-tasktracker.netlify.app/](https://kanban-tasktracker.netlify.app/)
+
 ## Features
 
 - Create new tasks in the "To Do" column
