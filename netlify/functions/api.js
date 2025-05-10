@@ -39,47 +39,61 @@ app.use((req, res, next) => {
 
 // Define API routes - handle both direct and nested paths
 
-// Direct path for local development
-app.get('/api/tasks', async (req, res) => {
+// Helper function to log database URL (with credentials hidden)
+function getRedactedDatabaseUrl() {
   try {
-    console.log('GET /api/tasks - Fetching all tasks');
+    const url = process.env.DATABASE_URL || 'No DATABASE_URL set';
+    // Replace any credentials in the URL with [REDACTED]
+    return url.replace(/\/\/[^:]+:[^@]+@/, '//[REDACTED]:[REDACTED]@');
+  } catch (error) {
+    return 'Error getting DATABASE_URL';
+  }
+}
+
+// Log database connection info on startup
+console.log('Database connection info:', {
+  provider: 'postgresql',
+  url: getRedactedDatabaseUrl(),
+  netlifyEnv: process.env.NETLIFY || 'not set'
+});
+
+// GET tasks - handle both direct and nested paths
+app.get('/api/tasks', getTasks);
+app.get('/tasks', getTasks);
+
+async function getTasks(req, res) {
+  try {
+    console.log(`GET ${req.path} - Fetching all tasks`);
     const tasks = await prisma.task.findMany();
     console.log(`Found ${tasks.length} tasks`);
     res.json(tasks);
   } catch (error) {
     console.error('Error fetching tasks:', error);
-    res.status(500).json({ error: 'Failed to fetch tasks' });
+    res.status(500).json({ error: 'Failed to fetch tasks: ' + error.message });
   }
-});
+}
 
-// Nested path for when accessed through Netlify function path
-app.get('/api/api/tasks', async (req, res) => {
-  try {
-    console.log('GET /api/api/tasks - Fetching all tasks (nested path)');
-    const tasks = await prisma.task.findMany();
-    console.log(`Found ${tasks.length} tasks`);
-    res.json(tasks);
-  } catch (error) {
-    console.error('Error fetching tasks:', error);
-    res.status(500).json({ error: 'Failed to fetch tasks' });
-  }
-});
+// POST task - handle both direct and nested paths
+app.post('/api/tasks', createTask);
+app.post('/tasks', createTask);
+app.post('/api/api/tasks', createTask);
 
-// POST handler for direct path
-app.post('/api/tasks', async (req, res) => {
+async function createTask(req, res) {
   try {
-    console.log('POST /api/tasks - Creating new task with body:', req.body);
-    const { content, column } = req.body;
+    console.log(`POST ${req.path} - Creating new task`, req.body);
     
-    if (!content) {
+    if (!req.body.content) {
       console.log('Content is required');
       return res.status(400).json({ error: 'Content is required' });
     }
     
     const task = await prisma.task.create({
       data: {
-        content,
-        column: column || 'TODO'
+        id: `task-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        content: req.body.content,
+        column: req.body.column || 'TODO',
+        createdAt: new Date(),
+        updatedAt: new Date()
       }
     });
     
@@ -87,40 +101,18 @@ app.post('/api/tasks', async (req, res) => {
     res.status(201).json(task);
   } catch (error) {
     console.error('Error creating task:', error);
-    res.status(500).json({ error: 'Failed to create task' });
+    res.status(500).json({ error: 'Failed to create task: ' + error.message });
   }
-});
+}
 
-// POST handler for nested path
-app.post('/api/api/tasks', async (req, res) => {
-  try {
-    console.log('POST /api/api/tasks (nested path) - Creating new task with body:', req.body);
-    const { content, column } = req.body;
-    
-    if (!content) {
-      console.log('Content is required');
-      return res.status(400).json({ error: 'Content is required' });
-    }
-    
-    const task = await prisma.task.create({
-      data: {
-        content,
-        column: column || 'TODO'
-      }
-    });
-    
-    console.log('Created new task:', task);
-    res.status(201).json(task);
-  } catch (error) {
-    console.error('Error creating task:', error);
-    res.status(500).json({ error: 'Failed to create task' });
-  }
-});
+// Unified handlers for PUT requests
+app.put('/api/tasks/:id', updateTask);
+app.put('/tasks/:id', updateTask);
+app.put('/api/api/tasks/:id', updateTask);
 
-// PUT handler for direct path
-app.put('/api/tasks/:id', async (req, res) => {
+async function updateTask(req, res) {
   try {
-    console.log(`PUT /api/tasks/${req.params.id} - Updating task with body:`, req.body);
+    console.log(`PUT ${req.path} - Updating task ${req.params.id}`, req.body);
     const { id } = req.params;
     const { column } = req.body;
     
@@ -131,7 +123,10 @@ app.put('/api/tasks/:id', async (req, res) => {
     
     const task = await prisma.task.update({
       where: { id },
-      data: { column }
+      data: { 
+        column,
+        updatedAt: new Date()
+      }
     });
     console.log('Updated task:', task);
     
@@ -140,12 +135,16 @@ app.put('/api/tasks/:id', async (req, res) => {
     console.error('Error updating task:', error);
     res.status(400).json({ error: error.message });
   }
-});
+}
 
-// PUT handler for nested path
-app.put('/api/api/tasks/:id', async (req, res) => {
+// Unified handlers for task movement
+app.put('/api/tasks/:id/move', moveTask);
+app.put('/tasks/:id/move', moveTask);
+app.put('/api/api/tasks/:id/move', moveTask);
+
+async function moveTask(req, res) {
   try {
-    console.log(`PUT /api/api/tasks/${req.params.id} (nested path) - Updating task with body:`, req.body);
+    console.log(`PUT ${req.path} - Moving task ${req.params.id}`, req.body);
     const { id } = req.params;
     const { column } = req.body;
     
@@ -156,32 +155,10 @@ app.put('/api/api/tasks/:id', async (req, res) => {
     
     const task = await prisma.task.update({
       where: { id },
-      data: { column }
-    });
-    console.log('Updated task:', task);
-    
-    res.json(task);
-  } catch (error) {
-    console.error('Error updating task:', error);
-    res.status(400).json({ error: error.message });
-  }
-});
-
-// Add endpoint for moving tasks between columns - direct path
-app.put('/api/tasks/:id/move', async (req, res) => {
-  try {
-    console.log(`PUT /api/tasks/${req.params.id}/move - Moving task with body:`, req.body);
-    const { id } = req.params;
-    const { column } = req.body;
-    
-    if (!column) {
-      console.log('Column is required');
-      return res.status(400).json({ error: 'Column is required' });
-    }
-    
-    const task = await prisma.task.update({
-      where: { id },
-      data: { column }
+      data: { 
+        column,
+        updatedAt: new Date()
+      }
     });
     console.log('Moved task:', task);
     
@@ -190,37 +167,16 @@ app.put('/api/tasks/:id/move', async (req, res) => {
     console.error('Error moving task:', error);
     res.status(400).json({ error: error.message });
   }
-});
+}
 
-// Add endpoint for moving tasks between columns - nested path
-app.put('/api/api/tasks/:id/move', async (req, res) => {
-  try {
-    console.log(`PUT /api/api/tasks/${req.params.id}/move (nested path) - Moving task with body:`, req.body);
-    const { id } = req.params;
-    const { column } = req.body;
-    
-    if (!column) {
-      console.log('Column is required');
-      return res.status(400).json({ error: 'Column is required' });
-    }
-    
-    const task = await prisma.task.update({
-      where: { id },
-      data: { column }
-    });
-    console.log('Moved task:', task);
-    
-    res.json(task);
-  } catch (error) {
-    console.error('Error moving task:', error);
-    res.status(400).json({ error: error.message });
-  }
-});
+// Unified handlers for delete operations
+app.delete('/api/tasks/:id', deleteTask);
+app.delete('/tasks/:id', deleteTask);
+app.delete('/api/api/tasks/:id', deleteTask);
 
-// Delete handler - direct path
-app.delete('/api/tasks/:id', async (req, res) => {
+async function deleteTask(req, res) {
   try {
-    console.log(`DELETE /api/tasks/${req.params.id} - Deleting task`);
+    console.log(`DELETE ${req.path} - Deleting task ${req.params.id}`);
     const { id } = req.params;
     
     await prisma.task.delete({
@@ -233,29 +189,25 @@ app.delete('/api/tasks/:id', async (req, res) => {
     console.error('Error deleting task:', error);
     res.status(400).json({ error: error.message });
   }
-});
+}
 
-// Delete handler - nested path
-app.delete('/api/api/tasks/:id', async (req, res) => {
-  try {
-    console.log(`DELETE /api/api/tasks/${req.params.id} (nested path) - Deleting task`);
-    const { id } = req.params;
-    
-    await prisma.task.delete({
-      where: { id }
-    });
-    console.log('Task deleted successfully');
-    
-    res.status(204).send();
-  } catch (error) {
-    console.error('Error deleting task:', error);
-    res.status(400).json({ error: error.message });
-  }
-});
-
-// Health check endpoint
+// Health check endpoints
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
+  res.json({ 
+    status: 'ok',
+    database: getRedactedDatabaseUrl(),
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ 
+    status: 'ok',
+    database: getRedactedDatabaseUrl(),
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Export the serverless function

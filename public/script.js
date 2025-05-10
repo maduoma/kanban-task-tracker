@@ -1,11 +1,31 @@
-// Use the Netlify function path in production, fallback to local API for development
+// Configure API base URL for different environments
 let API_BASE = '/api/tasks';
+let IS_NETLIFY = false;
 
 // Check if we're running on Netlify
 if (window.location.hostname.includes('netlify')) {
-  API_BASE = '/.netlify/functions/api/api/tasks';
-  console.log('Running on Netlify, using API path:', API_BASE);
+  IS_NETLIFY = true;
+  API_BASE = '/.netlify/functions/api';
+  console.log('Running on Netlify, using base API path:', API_BASE);
 }
+
+// Helper function to build the correct API URL based on the environment
+function getApiUrl(endpoint) {
+  if (IS_NETLIFY) {
+    // For Netlify Functions, we need to use the format: /.netlify/functions/api/tasks
+    return `${API_BASE}${endpoint}`;
+  } else {
+    // For local development, we use: /api/tasks
+    return endpoint;
+  }
+}
+
+// Log the API configuration for debugging
+console.log('API Configuration:', { 
+  IS_NETLIFY, 
+  API_BASE, 
+  tasksEndpoint: getApiUrl('/api/tasks')
+});
 const addTaskButton = document.getElementById('add-task-button');
 const newTaskInput = document.getElementById('new-task-input');
 const addTaskError = document.getElementById('add-task-error');
@@ -91,28 +111,39 @@ function createTaskCard(task) {
 }
 
 async function renderAllTasks() {
-  const res = await fetch(API_BASE);
-  const tasks = await res.json();
-  columns.forEach(col => col.querySelectorAll('.task-card').forEach(c => c.remove()));
-  
-  // Column mapping from database to UI
-  const columnMap = {
-    'TODO': 'todo',
-    'IN_PROGRESS': 'inprogress',  // This is the key fix - mapping IN_PROGRESS to inprogress
-    'DONE': 'done'
-  };
-  
-  tasks.forEach(task => {
-    // Use the mapping to get the correct column ID
-    const columnId = columnMap[task.column] || task.column.toLowerCase();
-    const col = document.getElementById(columnId);
-    
-    if (col) {
-      col.appendChild(createTaskCard(task));
-    } else {
-      console.error(`Column not found for task: ${task.id}, column: ${task.column}`);
+  console.log('Fetching all tasks...');
+  try {
+    const res = await fetch(getApiUrl('/api/tasks'));
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`Error fetching tasks: ${res.status} ${res.statusText}`, errorText);
+      return;
     }
-  });
+    const tasks = await res.json();
+    console.log('Tasks fetched successfully:', tasks);
+    columns.forEach(col => col.querySelectorAll('.task-card').forEach(c => c.remove()));
+  
+    // Column mapping from database to UI
+    const columnMap = {
+      'TODO': 'todo',
+      'IN_PROGRESS': 'inprogress',  // This is the key fix - mapping IN_PROGRESS to inprogress
+      'DONE': 'done'
+    };
+    
+    tasks.forEach(task => {
+      // Use the mapping to get the correct column ID
+      const columnId = columnMap[task.column] || task.column.toLowerCase();
+      const col = document.getElementById(columnId);
+      
+      if (col) {
+        col.appendChild(createTaskCard(task));
+      } else {
+        console.error(`Column not found for task: ${task.id}, column: ${task.column}`);
+      }
+    });
+  } catch (error) {
+    console.error('Error rendering tasks:', error);
+  }
 }
 
 async function addTask() {
@@ -124,9 +155,10 @@ async function addTask() {
   }
   addTaskError.classList.add('hidden');
 
-  console.log('Sending POST request to:', API_BASE);
+  const apiUrl = getApiUrl('/api/tasks');
+  console.log('Sending POST request to:', apiUrl);
   try {
-    const res = await fetch(API_BASE, {
+    const res = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: text }),
@@ -150,9 +182,24 @@ async function addTask() {
 }
 
 async function deleteTask(id) {
-  await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
-  const elem = document.getElementById(id);
-  if (elem) elem.remove();
+  try {
+    const apiUrl = getApiUrl(`/api/tasks/${id}`);
+    console.log(`Deleting task ${id} at URL: ${apiUrl}`);
+    const response = await fetch(apiUrl, { method: 'DELETE' });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Error deleting task: ${response.status}`, errorText);
+      throw new Error(`Failed to delete task: ${response.status}`);
+    }
+    
+    console.log(`Task ${id} deleted successfully`);
+    const elem = document.getElementById(id);
+    if (elem) elem.remove();
+  } catch (error) {
+    console.error('Error deleting task:', error);
+    alert('Failed to delete task. Please check the console for details.');
+  }
 }
 
 let draggedItem = null;
@@ -201,7 +248,9 @@ async function handleDrop(e) {
       
       // Then make the API call to persist the change
       console.log(`Moving task to ${newCol}`);
-      const response = await fetch(`${API_BASE}/${draggedItem.id}/move`, {
+      const apiUrl = getApiUrl(`/api/tasks/${draggedItem.id}/move`);
+      console.log(`Moving task at URL: ${apiUrl}`);
+      const response = await fetch(apiUrl, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ column: newCol }),
