@@ -7,11 +7,21 @@ const cors = require('cors');
 // Initialize Express app
 const app = express();
 
+// Import database initialization script
+const { initializeDatabase } = require('./prisma-migrate');
+
 // Initialize Prisma client with better error handling
 let prisma;
 try {
   prisma = new PrismaClient();
   console.log('Prisma client initialized successfully');
+  
+  // Initialize database schema and tables if needed
+  // This runs asynchronously to avoid blocking the server startup
+  initializeDatabase()
+    .then(result => console.log('Database initialization result:', result))
+    .catch(error => console.error('Database initialization error:', error));
+    
 } catch (error) {
   console.error('Failed to initialize Prisma client:', error);
   throw error; // Re-throw to ensure we don't proceed with a broken database connection
