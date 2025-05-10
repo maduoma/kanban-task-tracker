@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Database Initialization</title>
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 5px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
+    .loading {
+      text-align: center;
+      font-style: italic;
+      color: #666;
+    }
+    .error {
+      color: #d9534f;
+      background-color: #f9f2f2;
+      padding: 10px;
+      border-radius: 5px;
+      margin: 20px 0;
+    }
+    .success {
+      color: #5cb85c;
+      background-color: #f2f9f2;
+      padding: 10px;
+      border-radius: 5px;
+      margin: 20px 0;
+    }
+    button {
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 0;
+    }
+    button:hover {
+      background-color: #3367d6;
+    }
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Database Initialization</h1>
+  
+  <div id="status" class="loading">Checking database status...</div>
+  
+  <div class="buttons">
+    <button id="checkButton">Check Database</button>
+    <button id="initButton">Initialize Database</button>
+    <a href="/db-check.html"><button>View Database Status</button></a>
+    <a href="/"><button>Back to App</button></a>
+  </div>
+  
+  <h2>Database Information</h2>
+  <pre id="dbInfo">Loading...</pre>
+  
+  <script>
+    const statusEl = document.getElementById('status');
+    const dbInfoEl = document.getElementById('dbInfo');
+    const checkButton = document.getElementById('checkButton');
+    const initButton = document.getElementById('initButton');
+    
+    // Function to check database status
+    async function checkDatabase() {
+      statusEl.className = 'loading';
+      statusEl.textContent = 'Checking database status...';
+      dbInfoEl.textContent = 'Loading...';
+      
+      try {
+        // Call the database init function with GET to just check status
+        const response = await fetch('/.netlify/functions/db-init');
+        
+        if (!response.ok) {
+          throw new Error(`Server responded with status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Database check result:', data);
+        
+        // Update the UI with the results
+        if (data.databaseConnected) {
+          if (data.schemaInitialized) {
+            statusEl.className = 'success';
+            statusEl.textContent = 'Database connected and schema initialized!';
+          } else {
+            statusEl.className = 'error';
+            statusEl.textContent = 'Database connected but schema not initialized: ' + (data.schemaError || 'Unknown error');
+          }
+        } else {
+          statusEl.className = 'error';
+          statusEl.textContent = 'Database connection failed: ' + (data.databaseError || 'Unknown error');
+        }
+        
+        // Format database info
+        dbInfoEl.textContent = JSON.stringify(data, null, 2);
+      } catch (error) {
+        console.error('Error checking database:', error);
+        statusEl.className = 'error';
+        statusEl.textContent = 'Error checking database: ' + error.message;
+        dbInfoEl.textContent = 'Error: ' + error.message;
+      }
+    }
+    
+    // Function to initialize database
+    async function initDatabase() {
+      statusEl.className = 'loading';
+      statusEl.textContent = 'Initializing database...';
+      dbInfoEl.textContent = 'Loading...';
+      
+      try {
+        // Call the database init function with POST to force initialization
+        const response = await fetch('/.netlify/functions/db-init', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ force: true })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Server responded with status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Database initialization result:', data);
+        
+        // Update the UI with the results
+        if (data.schemaInitialized) {
+          statusEl.className = 'success';
+          statusEl.textContent = 'Database schema initialized successfully!';
+        } else {
+          statusEl.className = 'error';
+          statusEl.textContent = 'Failed to initialize database schema: ' + (data.schemaError || 'Unknown error');
+        }
+        
+        // Format database info
+        dbInfoEl.textContent = JSON.stringify(data, null, 2);
+      } catch (error) {
+        console.error('Error initializing database:', error);
+        statusEl.className = 'error';
+        statusEl.textContent = 'Error initializing database: ' + error.message;
+        dbInfoEl.textContent = 'Error: ' + error.message;
+      }
+    }
+    
+    // Check database on page load
+    checkDatabase();
+    
+    // Add event listeners to buttons
+    checkButton.addEventListener('click', checkDatabase);
+    initButton.addEventListener('click', initDatabase);
+  </script>
+</body>
+</html>

@@ -44,6 +44,13 @@
   status = 200
   force = true
 
+# Database initialization function redirect
+[[redirects]]
+  from = "/db-init"
+  to = "/.netlify/functions/db-init"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
