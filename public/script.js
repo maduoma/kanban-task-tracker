@@ -149,37 +149,59 @@ async function addTask() {
   }
   addTaskError.classList.add('hidden');
 
-  const apiUrl = getApiUrl('/api/tasks');
+  // Add a timestamp to avoid caching issues
+  const timestamp = new Date().getTime();
+  const apiUrl = `${getApiUrl('/api/tasks')}?t=${timestamp}`;
   console.log('Sending POST request to:', apiUrl, 'with data:', { content: text });
   
   try {
     // Show loading state
     addTaskButton.disabled = true;
     addTaskButton.textContent = 'Adding...';
+    addTaskError.textContent = '';
     
+    // Log the full request details
+    const requestBody = JSON.stringify({ content: text });
+    console.log('Request body:', requestBody);
+    console.log('Request body length:', requestBody.length);
+    
+    // Make the request with explicit mode and credentials
     const res = await fetch(apiUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: text }),
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Cache-Control': 'no-cache, no-store'
+      },
+      body: requestBody,
+      mode: 'cors',
+      credentials: 'same-origin'
     });
 
+    console.log('Response received');
     console.log('Response status:', res.status);
+    console.log('Response status text:', res.statusText);
+    console.log('Response type:', res.type);
+    console.log('Response URL:', res.url);
     console.log('Response headers:', [...res.headers.entries()].reduce((obj, [key, val]) => {
       obj[key] = val;
       return obj;
     }, {}));
     
-    // Clone the response so we can read it multiple times
-    const resClone = res.clone();
-    
-    // Log the raw response text for debugging
-    const rawText = await resClone.text();
+    // Get the raw text response
+    const rawText = await res.text();
     console.log('Raw response text:', rawText);
-    console.log('Response status:', res.status);
-    console.log('Response headers:', [...res.headers.entries()].reduce((obj, [key, val]) => {
-      obj[key] = val;
-      return obj;
-    }, {}));
+    console.log('Raw response length:', rawText.length);
+    
+    // Try to detect if it's HTML instead of JSON
+    const isHtml = rawText.trim().startsWith('<!DOCTYPE html>') || 
+                  rawText.trim().startsWith('<html>') ||
+                  rawText.includes('<body');
+    
+    if (isHtml) {
+      console.error('Received HTML instead of JSON. This might be a server error page or redirect');
+      throw new Error('Server returned HTML instead of JSON');
+    }
     
     let responseData;
     try {
@@ -188,24 +210,49 @@ async function addTask() {
       console.log('Successfully parsed response as JSON:', responseData);
     } catch (e) {
       console.error('Failed to parse response as JSON:', e);
-      // Not valid JSON, create an error object
+      // Not valid JSON, create an error object with more details
       responseData = { 
-        content: rawText.substring(0, 100) + (rawText.length > 100 ? '...' : ''), 
-        error: 'Response was not JSON'
+        content: rawText.substring(0, 200) + (rawText.length > 200 ? '...' : ''), 
+        error: 'Response was not JSON',
+        parseError: e.message
       };
+      throw new Error(`Failed to parse response as JSON: ${e.message}`);
     }
     
     if (!res.ok) {
-      throw new Error(responseData?.error || `API error: ${res.status}`);
+      throw new Error(responseData?.error || `API error: ${res.status} - ${res.statusText}`);
     }
 
     console.log('New task created:', responseData);
     document.getElementById('todo').appendChild(createTaskCard(responseData));
     newTaskInput.value = '';
+    
+    // Show success message
+    addTaskError.textContent = 'Task added successfully!';
+    addTaskError.classList.remove('hidden');
+    addTaskError.style.color = 'green';
+    
+    // Hide success message after 3 seconds
+    setTimeout(() => {
+      addTaskError.classList.add('hidden');
+      addTaskError.style.color = 'red';
+    }, 3000);
   } catch (error) {
     console.error('Error adding task:', error);
     addTaskError.textContent = `Failed to add task: ${error.message}`;
     addTaskError.classList.remove('hidden');
+    
+    // Try direct API health check
+    try {
+      const healthCheckUrl = getApiUrl('/api/health');
+      console.log('Checking API health at:', healthCheckUrl);
+      fetch(healthCheckUrl)
+        .then(res => res.text())
+        .then(text => console.log('Health check response:', text))
+        .catch(err => console.error('Health check failed:', err));
+    } catch (healthError) {
+      console.error('Error checking API health:', healthError);
+    }
   } finally {
     // Reset button state
     addTaskButton.disabled = false;
