@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Database Setup</title>
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1, h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 5px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
+    .loading {
+      text-align: center;
+      font-style: italic;
+      color: #666;
+    }
+    .error {
+      color: #d9534f;
+      background-color: #f9f2f2;
+      padding: 10px;
+      border-radius: 5px;
+      margin: 20px 0;
+    }
+    .success {
+      color: #5cb85c;
+      background-color: #f2f9f2;
+      padding: 10px;
+      border-radius: 5px;
+      margin: 20px 0;
+    }
+    .warning {
+      color: #f0ad4e;
+      background-color: #fcf8e3;
+      padding: 10px;
+      border-radius: 5px;
+      margin: 20px 0;
+    }
+    .info {
+      color: #5bc0de;
+      background-color: #f0f7fd;
+      padding: 10px;
+      border-radius: 5px;
+      margin: 20px 0;
+    }
+    button {
+      background-color: #4285f4;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 0;
+    }
+    button:hover {
+      background-color: #3367d6;
+    }
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    .buttons {
+      display: flex;
+      gap: 10px;
+      margin: 20px 0;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .card {
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      padding: 15px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .card h3 {
+      margin-top: 0;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 10px;
+    }
+    .status-indicator {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
+    .status-indicator.green {
+      background-color: #5cb85c;
+    }
+    .status-indicator.red {
+      background-color: #d9534f;
+    }
+    .status-indicator.yellow {
+      background-color: #f0ad4e;
+    }
+    .status-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .task-list {
+      list-style-type: none;
+      padding: 0;
+    }
+    .task-list li {
+      padding: 8px;
+      margin-bottom: 8px;
+      border-radius: 4px;
+      background-color: #f9f9f9;
+    }
+    .task-list li.success {
+      background-color: #f2f9f2;
+    }
+    .task-list li.error {
+      background-color: #f9f2f2;
+    }
+  </style>
+</head>
+<body>
+  <h1>Kanban Task Tracker</h1>
+  <h2>Database Setup</h2>
+  
+  <div id="status" class="loading">Checking database status...</div>
+  
+  <div class="buttons">
+    <button id="checkButton">Check Database</button>
+    <button id="setupButton">Setup Database</button>
+    <button id="forceSetupButton">Force Add Sample Tasks</button>
+    <a href="/"><button>Back to App</button></a>
+  </div>
+  
+  <div class="card">
+    <h3>Database Status</h3>
+    <div id="dbStatus">Loading...</div>
+  </div>
+  
+  <div class="card">
+    <h3>Task Table Status</h3>
+    <div id="tableStatus">Loading...</div>
+  </div>
+  
+  <div class="card">
+    <h3>Sample Tasks</h3>
+    <div id="sampleTasks">No sample tasks added yet</div>
+  </div>
+  
+  <div class="card">
+    <h3>Raw Response</h3>
+    <pre id="rawResponse">Loading...</pre>
+  </div>
+  
+  <script>
+    const statusEl = document.getElementById('status');
+    const dbStatusEl = document.getElementById('dbStatus');
+    const tableStatusEl = document.getElementById('tableStatus');
+    const sampleTasksEl = document.getElementById('sampleTasks');
+    const rawResponseEl = document.getElementById('rawResponse');
+    const checkButton = document.getElementById('checkButton');
+    const setupButton = document.getElementById('setupButton');
+    const forceSetupButton = document.getElementById('forceSetupButton');
+    
+    // Disable buttons initially
+    setupButton.disabled = true;
+    forceSetupButton.disabled = true;
+    
+    // Function to check database status
+    async function checkDatabase() {
+      statusEl.className = 'loading';
+      statusEl.textContent = 'Checking database status...';
+      
+      try {
+        // Call the prisma-setup function with GET to check status
+        const response = await fetch('/.netlify/functions/prisma-setup');
+        
+        if (!response.ok) {
+          throw new Error(`Server responded with status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Database check result:', data);
+        
+        // Update the UI with the results
+        updateUI(data);
+        
+        // Enable or disable buttons based on database status
+        setupButton.disabled = !data.connectionStatus.connected;
+        forceSetupButton.disabled = !data.connectionStatus.connected;
+        
+        return data;
+      } catch (error) {
+        console.error('Error checking database:', error);
+        statusEl.className = 'error';
+        statusEl.textContent = 'Error checking database: ' + error.message;
+        dbStatusEl.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+        tableStatusEl.innerHTML = `<div class="error">Could not check table status</div>`;
+        rawResponseEl.textContent = JSON.stringify({ error: error.message }, null, 2);
+        
+        // Disable buttons on error
+        setupButton.disabled = true;
+        forceSetupButton.disabled = true;
+        
+        return null;
+      }
+    }
+    
+    // Function to setup database
+    async function setupDatabase(force = false) {
+      statusEl.className = 'loading';
+      statusEl.textContent = force ? 'Force adding sample tasks...' : 'Setting up database...';
+      
+      try {
+        // Call the prisma-setup function with POST to setup database
+        const response = await fetch('/.netlify/functions/prisma-setup', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ force })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Server responded with status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Database setup result:', data);
+        
+        // Update the UI with the results
+        updateUI(data);
+        
+        return data;
+      } catch (error) {
+        console.error('Error setting up database:', error);
+        statusEl.className = 'error';
+        statusEl.textContent = 'Error setting up database: ' + error.message;
+        rawResponseEl.textContent = JSON.stringify({ error: error.message }, null, 2);
+        return null;
+      }
+    }
+    
+    // Function to update UI with database status
+    function updateUI(data) {
+      if (!data) return;
+      
+      // Update main status
+      if (data.connectionStatus.connected) {
+        statusEl.className = 'success';
+        statusEl.textContent = 'Database connection successful!';
+      } else {
+        statusEl.className = 'error';
+        statusEl.textContent = 'Database connection failed: ' + (data.connectionStatus.error || 'Unknown error');
+      }
+      
+      // Update database status card
+      let dbStatusHtml = '';
+      if (data.connectionStatus.connected) {
+        dbStatusHtml += `<div class="status-row"><span class="status-indicator green"></span> Connected to database</div>`;
+        dbStatusHtml += `<div class="info">Database URL: ${data.databaseUrl}</div>`;
+        dbStatusHtml += `<div class="info">Environment: ${data.environment}</div>`;
+      } else {
+        dbStatusHtml += `<div class="status-row"><span class="status-indicator red"></span> Failed to connect to database</div>`;
+        dbStatusHtml += `<div class="error">Error: ${data.connectionStatus.error || 'Unknown error'}</div>`;
+        if (data.connectionStatus.code) {
+          dbStatusHtml += `<div class="error">Code: ${data.connectionStatus.code}</div>`;
+        }
+      }
+      dbStatusEl.innerHTML = dbStatusHtml;
+      
+      // Update task table status card
+      let tableStatusHtml = '';
+      if (data.taskTableStatus) {
+        if (data.taskTableStatus.exists) {
+          tableStatusHtml += `<div class="status-row"><span class="status-indicator green"></span> Task table exists</div>`;
+          tableStatusHtml += `<div class="info">Current task count: ${data.taskTableStatus.count}</div>`;
+          if (data.updatedTaskCount !== undefined) {
+            tableStatusHtml += `<div class="info">Updated task count after setup: ${data.updatedTaskCount}</div>`;
+          }
+        } else {
+          tableStatusHtml += `<div class="status-row"><span class="status-indicator red"></span> Task table does not exist</div>`;
+          tableStatusHtml += `<div class="error">Error: ${data.taskTableStatus.error || 'Unknown error'}</div>`;
+          if (data.taskTableStatus.code) {
+            tableStatusHtml += `<div class="error">Code: ${data.taskTableStatus.code}</div>`;
+          }
+        }
+      } else {
+        tableStatusHtml += `<div class="warning">Could not check task table status</div>`;
+      }
+      tableStatusEl.innerHTML = tableStatusHtml;
+      
+      // Update sample tasks card
+      if (data.sampleTaskResults && data.sampleTaskResults.length > 0) {
+        let tasksHtml = '<ul class="task-list">';
+        data.sampleTaskResults.forEach(result => {
+          if (result.success) {
+            tasksHtml += `<li class="success">✅ Added: ${result.task.content} (${result.task.column})</li>`;
+          } else {
+            tasksHtml += `<li class="error">❌ Failed to add: ${result.content} - ${result.error}</li>`;
+          }
+        });
+        tasksHtml += '</ul>';
+        sampleTasksEl.innerHTML = tasksHtml;
+      } else if (data.taskTableStatus && data.taskTableStatus.exists && data.taskTableStatus.count > 0) {
+        sampleTasksEl.innerHTML = `<div class="info">Database already has ${data.taskTableStatus.count} tasks. Click "Force Add Sample Tasks" to add more sample tasks.</div>`;
+      } else {
+        sampleTasksEl.innerHTML = '<div class="info">No sample tasks added yet</div>';
+      }
+      
+      // Update raw response
+      rawResponseEl.textContent = JSON.stringify(data, null, 2);
+    }
+    
+    // Check database on page load
+    checkDatabase();
+    
+    // Add event listeners to buttons
+    checkButton.addEventListener('click', checkDatabase);
+    setupButton.addEventListener('click', () => setupDatabase(false));
+    forceSetupButton.addEventListener('click', () => setupDatabase(true));
+  </script>
+</body>
+</html>
