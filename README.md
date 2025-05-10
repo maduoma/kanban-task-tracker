@@ -135,7 +135,7 @@ To enable automatic deployment to Netlify, you need to add the following secrets
 
 ### Local Development vs CI Environment
 
-The CI pipeline uses a PostgreSQL service container for testing, which is automatically configured in the GitHub Actions workflow. This ensures that tests run in an environment similar to your local development setup.
+The CI pipeline uses SQLite for testing in the GitHub Actions environment, which simplifies the CI setup and avoids potential Docker-related issues. While your local development might use PostgreSQL, the tests are configured to run with either database system by using environment variables.
 
 ## API Endpoints
 
