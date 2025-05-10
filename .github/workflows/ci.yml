@@ -120,12 +120,19 @@ jobs:
         # Ensure Prisma client is generated
         npx prisma generate
     
+    # Install Netlify CLI globally
+    - name: Install Netlify CLI
+      run: npm install -g netlify-cli
+      
+    # Deploy to Netlify using environment variables
     - name: Deploy to Netlify
-      uses: jsmrcaga/action-netlify-deploy@v2.0.0
-      with:
+      run: |
+        # Set environment variables for Netlify CLI
+        export NETLIFY_AUTH_TOKEN="$NETLIFY_AUTH_TOKEN"
+        export NETLIFY_SITE_ID="$NETLIFY_SITE_ID"
+        # Deploy to Netlify
+        netlify deploy --dir=public --prod --message="Deploy from GitHub Actions"
+      env:
         NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
         NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-        NETLIFY_DEPLOY_TO_PROD: true
-        build_directory: 'public'
-        NETLIFY_DEPLOY_MESSAGE: 'Deploy from GitHub Actions'
       # Note: You need to add NETLIFY_AUTH_TOKEN and NETLIFY_SITE_ID secrets in your GitHub repository settings
