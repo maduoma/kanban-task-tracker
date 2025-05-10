@@ -63,16 +63,12 @@ async function main() {
       console.log('Error checking tasks, attempting to create schema:', error.message);
       
       try {
-        // Try to create the Task table using Prisma's schema push
-        // This is more reliable than raw SQL for PostgreSQL
-        console.log('Pushing Prisma schema to database...');
-        
-        // We'll use a simple approach that works with PostgreSQL
+        console.log('Creating Task table if not exists...');
         await prisma.$executeRaw`
           CREATE TABLE IF NOT EXISTS "Task" (
             "id" TEXT NOT NULL,
             "content" TEXT NOT NULL,
-            "column" TEXT NOT NULL,
+            "column" TEXT NOT NULL CHECK ("column" IN ('TODO', 'IN_PROGRESS', 'DONE')),
             "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
             "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
             CONSTRAINT "Task_pkey" PRIMARY KEY ("id")
