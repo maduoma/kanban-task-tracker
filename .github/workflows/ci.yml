@@ -120,13 +120,15 @@ jobs:
         # Ensure Prisma client is generated
         npx prisma generate
     
-    # Use a direct Netlify deployment approach
+    # Use a simple Netlify deployment approach
+    - name: Install Netlify CLI
+      run: npm install -g netlify-cli
+      
     - name: Deploy to Netlify
-      uses: South-Paw/action-netlify-deploy@v1.2.0
-      with:
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        netlify-auth-token: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-        netlify-site-id: ${{ secrets.NETLIFY_SITE_ID }}
-        build-dir: './public'
-        comment-on-commit: true
+      run: |
+        # Deploy to Netlify using the CLI
+        netlify deploy --dir=public --prod --auth="$NETLIFY_AUTH_TOKEN" --site="$NETLIFY_SITE_ID"
+      env:
+        NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
       # Note: You need to add NETLIFY_AUTH_TOKEN and NETLIFY_SITE_ID secrets in your GitHub repository settings
