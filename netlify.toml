@@ -58,6 +58,13 @@
   status = 200
   force = true
 
+# Prisma setup function redirect
+[[redirects]]
+  from = "/prisma-setup"
+  to = "/.netlify/functions/prisma-setup"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
