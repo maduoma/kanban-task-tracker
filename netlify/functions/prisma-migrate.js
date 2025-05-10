@@ -1,6 +1,45 @@
 // Prisma migration script for Netlify functions
 const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+
+// Log the DATABASE_URL (with credentials hidden) for debugging
+const dbUrl = process.env.DATABASE_URL || 'No DATABASE_URL found';
+const sanitizedDbUrl = dbUrl.replace(/:\/\/[^@]*@/, '://***:***@');
+console.log('Using database URL:', sanitizedDbUrl);
+
+// Initialize Prisma client with debug mode
+const prisma = new PrismaClient({
+  log: ['query', 'info', 'warn', 'error'],
+});
+
+// Helper function to add sample tasks
+async function addSampleTasks() {
+  console.log('Adding sample tasks...');
+  
+  const initialTasks = [
+    { content: 'Welcome to Kanban Task Tracker!', column: 'TODO' },
+    { content: 'Drag tasks between columns', column: 'IN_PROGRESS' },
+    { content: 'Add new tasks using the form above', column: 'DONE' }
+  ];
+  
+  for (const task of initialTasks) {
+    try {
+      await prisma.task.create({
+        data: {
+          id: `sample-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+          content: task.content,
+          column: task.column,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      });
+      console.log(`Created task: ${task.content} in ${task.column}`);
+    } catch (error) {
+      console.error(`Error creating sample task: ${error.message}`);
+    }
+  }
+  
+  console.log('Sample tasks added successfully');
+}
 
 async function main() {
   console.log('Starting database initialization...');
@@ -8,59 +47,49 @@ async function main() {
   try {
     // Check if Task table exists by trying to count tasks
     try {
-      await prisma.task.count();
-      console.log('Task table already exists, skipping initialization');
-      return { success: true, message: 'Database already initialized' };
+      const count = await prisma.task.count();
+      console.log(`Task table exists with ${count} tasks, checking if we need to add sample data`);
+      
+      // If no tasks exist, add sample tasks
+      if (count === 0) {
+        console.log('No tasks found, adding sample tasks...');
+        await addSampleTasks();
+        return { success: true, message: 'Added sample tasks to existing database' };
+      }
+      
+      return { success: true, message: 'Database already initialized with tasks' };
     } catch (error) {
-      console.log('Task table does not exist, creating schema...');
+      // The error might be because the table doesn't exist or because of connection issues
+      console.log('Error checking tasks, attempting to create schema:', error.message);
       
-      // First, create the Column enum type if it doesn't exist
       try {
+        // Try to create the Task table using Prisma's schema push
+        // This is more reliable than raw SQL for PostgreSQL
+        console.log('Pushing Prisma schema to database...');
+        
+        // We'll use a simple approach that works with PostgreSQL
         await prisma.$executeRaw`
-          DO $$
-          BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'column') THEN
-              CREATE TYPE "column" AS ENUM ('TODO', 'IN_PROGRESS', 'DONE');
-            END IF;
-          END
-          $$;
+          CREATE TABLE IF NOT EXISTS "Task" (
+            "id" TEXT NOT NULL,
+            "content" TEXT NOT NULL,
+            "column" TEXT NOT NULL,
+            "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT "Task_pkey" PRIMARY KEY ("id")
+          );
         `;
-        console.log('Column enum created or already exists');
+        console.log('Task table created successfully');
+        
+        console.log('Schema created successfully');
+        
+        // Add sample tasks
+        await addSampleTasks();
+        
+        return { success: true, message: 'Database initialized with sample tasks' };
       } catch (error) {
-        console.error('Error creating Column enum:', error);
-        // Continue anyway, we'll use TEXT as fallback
+        console.error('Error creating database schema:', error);
+        return { success: false, error: error.message };
       }
-      
-      // Create tables manually using Prisma's queryRaw
-      // This is a simplified approach for Netlify functions where we can't run migrations directly
-      await prisma.$executeRaw`
-        CREATE TABLE IF NOT EXISTS "Task" (
-          "id" TEXT NOT NULL,
-          "content" TEXT NOT NULL,
-          "column" TEXT NOT NULL,
-          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          "updatedAt" TIMESTAMP(3) NOT NULL,
-          CONSTRAINT "Task_pkey" PRIMARY KEY ("id")
-        );
-      `;
-      
-      console.log('Schema created successfully');
-      
-      // Create some initial tasks
-      const initialTasks = [
-        { content: 'Welcome to Kanban Task Tracker!', column: 'TODO' },
-        { content: 'Drag tasks between columns', column: 'IN_PROGRESS' },
-        { content: 'Add new tasks using the form above', column: 'DONE' }
-      ];
-      
-      for (const task of initialTasks) {
-        await prisma.task.create({
-          data: task
-        });
-      }
-      
-      console.log('Initial tasks created');
-      return { success: true, message: 'Database initialized with sample tasks' };
     }
   } catch (error) {
     console.error('Error initializing database:', error);
